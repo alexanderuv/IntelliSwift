@@ -32,7 +32,8 @@ class SwiftPackageGraphLoader(private val toolchain: SwiftToolchain) {
         val stop = { finished.get() || cancelled() }
         val futures: Map<String, Future<Pair<String, String?>>> = resolved.flatten().associate { node ->
             node.identity to executor.submit<Pair<String, String?>> {
-                val commands = SwiftPackageCommands(toolchain, node.path)
+                // In the root's directory: the root's toolchain describes the whole graph.
+                val commands = SwiftPackageCommands(toolchain, node.path, workingDirectory = root)
                 SwiftCommandRunner.runChecked(commands.describe(), stop) to
                     SwiftCommandRunner.runChecked(commands.dumpPackage(), stop)
             }

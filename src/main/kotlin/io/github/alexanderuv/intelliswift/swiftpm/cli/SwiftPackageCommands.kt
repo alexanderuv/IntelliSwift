@@ -12,18 +12,21 @@ enum class SwiftBuildConfiguration(val cli: String, val displayName: String) {
 
 /**
  * The SwiftPM command lines the plugin runs. Every command names its package with
- * `--package-path`, so the working directory stays free for the program being run.
+ * `--package-path`; they run in [workingDirectory], by default the package directory. That is
+ * where swiftly's `swift` looks for the `.swift-version` that picks the toolchain, so commands
+ * for a dependency of a package run in the depending package's directory: the root package
+ * decides the toolchain, not a `.swift-version` a dependency's repository happens to ship.
  */
-class SwiftPackageCommands(val toolchain: SwiftToolchain, val packagePath: Path) {
+class SwiftPackageCommands(val toolchain: SwiftToolchain, val packagePath: Path, val workingDirectory: Path = packagePath) {
 
     private fun swift(subcommand: String, vararg args: String): GeneralCommandLine =
         toolchain.command(subcommand, "--package-path", packagePath.toString(), *args)
-            .withWorkingDirectory(packagePath)
+            .withWorkingDirectory(workingDirectory)
 
     /** `swift package <subcommand>`; `--package-path` is an option of `swift package` itself. */
     private fun pkg(subcommand: String, vararg args: String): GeneralCommandLine =
         toolchain.command("package", "--package-path", packagePath.toString(), subcommand, *args)
-            .withWorkingDirectory(packagePath)
+            .withWorkingDirectory(workingDirectory)
 
     fun describe(): GeneralCommandLine = pkg("describe", "--type", "json")
 

@@ -12,12 +12,24 @@ import kotlin.io.path.getLastModifiedTime
 import kotlin.io.path.isExecutable
 import kotlin.io.path.isRegularFile
 
-/** A Swift toolchain, identified by its `swift` driver executable. */
+/**
+ * A Swift toolchain, identified by its `swift` driver executable.
+ *
+ * The executable may be a proxy that picks the toolchain per directory: swiftly's `swift` follows
+ * the `.swift-version` file of its working directory or the nearest one above it. So the version
+ * a command runs with depends on the directory it runs in; see [versionIn].
+ */
 class SwiftToolchain(swift: Path) {
     val swift: Path = swift.absolute().normalize()
 
-    /** The version `swift --version` reports, or `null` if the executable cannot be run. */
-    val version: SwiftVersion? get() = VersionCache.versionOf(swift)
+    /** The version `swift --version` reports outside any package, or `null` if it cannot be run. */
+    val version: SwiftVersion? get() = versionIn(null)
+
+    /**
+     * The version `swift --version` reports when run in [directory], as commands for the package
+     * there run, or `null` if it cannot be run.
+     */
+    fun versionIn(directory: Path?): SwiftVersion? = VersionCache.versionOf(swift, directory?.absolute()?.normalize())
 
     val isValid: Boolean get() = swift.isRegularFile() && (SystemInfo.isWindows || swift.isExecutable())
 
@@ -41,22 +53,27 @@ class SwiftToolchain(swift: Path) {
     private object VersionCache {
         private class Entry(val modified: Long, val queriedAt: Long, val version: SwiftVersion)
 
-        private val entries = ConcurrentHashMap<Path, Entry>()
+        /** By executable and working directory (`null`: the user's home, outside any package). */
+        private val entries = ConcurrentHashMap<Pair<Path, Path?>, Entry>()
 
-        fun versionOf(swift: Path): SwiftVersion? {
+        fun versionOf(swift: Path, directory: Path?): SwiftVersion? {
             val modified = runCatching { swift.getLastModifiedTime().toMillis() }.getOrNull() ?: return null
+            val key = swift to directory
             val now = System.nanoTime()
-            entries[swift]?.takeIf { it.modified == modified && now - it.queriedAt < TTL_NANOS }?.let { return it.version }
-            val version = query(swift)
-            if (version == null) entries.remove(swift) else entries[swift] = Entry(modified, now, version)
+            entries[key]?.takeIf { it.modified == modified && now - it.queriedAt < TTL_NANOS }?.let { return it.version }
+            val version = query(swift, directory)
+            if (version == null) entries.remove(key) else entries[key] = Entry(modified, now, version)
             return version
         }
 
-        private fun query(swift: Path): SwiftVersion? {
+        private fun query(swift: Path, directory: Path?): SwiftVersion? {
             if (!Files.isRegularFile(swift)) return null
+            // Never the IDE's own working directory, which says nothing about the user's choice.
+            val workingDirectory = directory?.takeIf { Files.isDirectory(it) } ?: Path.of(System.getProperty("user.home"))
             val output = runCatching {
                 CapturingProcessHandler(GeneralCommandLine(swift.toString(), "--version")
-                    .withParentEnvironmentType(GeneralCommandLine.ParentEnvironmentType.CONSOLE))
+                    .withParentEnvironmentType(GeneralCommandLine.ParentEnvironmentType.CONSOLE)
+                    .withWorkingDirectory(workingDirectory))
                     .runProcess(VERSION_TIMEOUT_MS)
             }.getOrNull() ?: return null
             if (output.isTimeout || output.exitCode != 0) return null
@@ -74,6 +91,11 @@ data class SwiftVersion(val major: Int, val minor: Int, val patch: Int = 0, val 
 
     override fun compareTo(other: SwiftVersion): Int =
         compareValuesBy(this, other, SwiftVersion::major, SwiftVersion::minor, SwiftVersion::patch)
+
+    /** Equal when the numbers are, as [compareTo] says; [text] is only how the toolchain spelled it. */
+    override fun equals(other: Any?): Boolean = other is SwiftVersion && compareTo(other) == 0
+
+    override fun hashCode(): Int = (major * 31 + minor) * 31 + patch
 
     fun atLeast(major: Int, minor: Int = 0): Boolean = this >= SwiftVersion(major, minor)
 

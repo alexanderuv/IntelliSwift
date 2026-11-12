@@ -10,7 +10,6 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
-import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicInteger
 
 /** *Settings | Languages & Frameworks | Swift*: the toolchain used for SwiftPM. */
@@ -28,6 +27,10 @@ class SwiftToolchainConfigurable : BoundSearchableConfigurable("Swift", "intelli
                         FileChooserDescriptorFactory.singleFile().withTitle("Select the swift Executable"),
                     ).align(AlignX.FILL)
                         .bindText({ settings.swiftPath.orEmpty() }, { settings.swiftPath = it })
+                        .validationOnApply {
+                            val path = SwiftToolchainSettings.normalizePath(it.text)
+                            if (path != null && SwiftToolchainSettings.toolchainAt(path) == null) error("Not a valid path: $path") else null
+                        }
                         .comment("Leave empty to detect: PATH, xcrun, swiftly and the standard install locations.")
                         .component
                 }
@@ -42,16 +45,27 @@ class SwiftToolchainConfigurable : BoundSearchableConfigurable("Swift", "intelli
     }
 
     /**
-     * Shows which toolchain [path] (or detection, for an empty path) resolves to, computed off the
+     * Shows the path as stored, normalized ([SwiftToolchainSettings.normalizePath]), so the page
+     * is not left modified by surrounding spaces or quotes it dropped.
+     */
+    override fun apply() {
+        super.apply()
+        reset()
+    }
+
+    /**
+     * Shows which toolchain [text] (or detection, for an empty path) resolves to, computed off the
      * UI thread. Each edit supersedes the checks still running, which may finish in any order.
      */
-    private fun describe(path: String) {
+    private fun describe(text: String) {
         val request = requests.incrementAndGet()
         status.text = "Checking…"
+        val path = SwiftToolchainSettings.normalizePath(text)
         ApplicationManager.getApplication().executeOnPooledThread {
-            val toolchain = if (path.isBlank()) settings.defaultToolchain(refresh = true) else SwiftToolchain(Path.of(path.trim()))
-            val text = when {
-                toolchain == null -> "No Swift toolchain found."
+            val toolchain = if (path == null) settings.defaultToolchain(refresh = true) else SwiftToolchainSettings.toolchainAt(path)
+            val message = when {
+                toolchain == null && path == null -> "No Swift toolchain found."
+                toolchain == null -> "Not a valid path: $path"
                 !toolchain.isValid -> "Not an executable: ${toolchain.swift}"
                 else -> when (val version = toolchain.version) {
                     null -> "Could not run ${toolchain.swift} --version"
@@ -61,7 +75,7 @@ class SwiftToolchainConfigurable : BoundSearchableConfigurable("Swift", "intelli
                     }
                 }
             }
-            ApplicationManager.getApplication().invokeLater({ if (request == requests.get()) status.text = text }, ModalityState.any())
+            ApplicationManager.getApplication().invokeLater({ if (request == requests.get()) status.text = message }, ModalityState.any())
         }
     }
 }

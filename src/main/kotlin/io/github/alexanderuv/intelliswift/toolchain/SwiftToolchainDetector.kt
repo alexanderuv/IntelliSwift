@@ -30,8 +30,14 @@ object SwiftToolchainDetector {
         val home = Path.of(System.getProperty("user.home"))
 
         yieldAll(inPath(exe))
-        // swiftly installs a proxy `swift` in its bin directory.
-        System.getenv("SWIFTLY_BIN_DIR")?.let { yield(Path.of(it, exe)) }
+        // swiftly installs a proxy `swift` in its bin directory: the one its environment names
+        // (from the user's shell, like PATH), else its default for the platform.
+        shellVariable("SWIFTLY_BIN_DIR")?.let { yield(Path.of(it, exe)) }
+        shellVariable("SWIFTLY_HOME_DIR")?.let { yield(Path.of(it, "bin", exe)) }
+        if (SystemInfo.isLinux) {
+            val dataHome = shellVariable("XDG_DATA_HOME")?.let(Path::of) ?: home.resolve(".local/share")
+            yield(dataHome.resolve("swiftly/bin/$exe"))
+        }
         yield(home.resolve(".swiftly/bin/$exe"))
         if (SystemInfo.isMac) {
             yield(home.resolve("Library/Application Support/swiftly/bin/swift"))
@@ -63,6 +69,10 @@ object SwiftToolchainDetector {
             .filter { it.isNotBlank() }
             .mapNotNull { runCatching { Path.of(it.trim(), exe) }.getOrNull() }
             .filter { Files.isRegularFile(it) }
+
+    /** [name] in the user's shell environment, as the platform loads it; `null` if unset, blank or not a path. */
+    private fun shellVariable(name: String): String? =
+        EnvironmentUtil.getValue(name)?.trim()?.takeIf { it.isNotEmpty() && runCatching { Path.of(it) }.isSuccess }
 
     private fun children(dir: Path): List<Path> =
         if (dir.isDirectory()) runCatching { dir.listDirectoryEntries() }.getOrDefault(emptyList()) else emptyList()
