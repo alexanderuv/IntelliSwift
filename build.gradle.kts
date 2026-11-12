@@ -46,6 +46,10 @@ dependencies {
         bundledModule("intellij.platform.smRunner")
         bundledModule("intellij.platform.testRunner")
         testFramework(TestFrameworkType.Platform)
+        // Tests only: in IntelliJ IDEA the Java plugin's directory icon provider shows module
+        // content roots with the module type's icon, which SwiftPmImportTest checks the Project
+        // view against.
+        testBundledPlugin("com.intellij.java")
     }
 }
 
