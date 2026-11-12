@@ -16,6 +16,14 @@
         <module name="intellij.platform.externalSystem"/>
     </dependencies>
 
+    <!-- region SwiftPM project import: dependencies -->
+    <depends>com.intellij.modules.externalSystem</depends>
+    <dependencies>
+        <!-- The External System's settings page, tool window, open provider, trust dialog and ExternalSystemUtil -->
+        <module name="intellij.platform.externalSystem.impl"/>
+    </dependencies>
+    <!-- endregion -->
+
     <extensions defaultExtensionNs="com.intellij">
         <fileType name="Swift" implementationClass="io.github.alexanderuv.intelliswift.lang.SwiftFileType"
                   fieldName="INSTANCE" language="Swift" extensions="swift"/>
@@ -57,4 +65,32 @@
                              instance="io.github.alexanderuv.intelliswift.swiftpm.build.SwiftBuildConfigurable"/>
         <!-- endregion -->
     </extensions>
+
+    <!-- region SwiftPM project import (External System, ADR 0002) -->
+    <extensions defaultExtensionNs="com.intellij">
+        <externalSystemManager implementation="io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmManager"/>
+        <!-- SwiftPM is driven through the swift CLI, so the External System runs in the IDE process. -->
+        <registryKey key="SWIFTPM.system.in.process" defaultValue="true"
+                     description="Run the SwiftPM External System integration in the IDE process"/>
+        <moduleType id="SWIFT_MODULE" implementationClass="io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPackageModuleType"/>
+        <projectConfigurable parentId="build.tools" id="reference.settingsdialog.project.swiftpm" displayName="SwiftPM"
+                             instance="io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmConfigurable"/>
+        <externalSystemUnlinkedProjectAware
+                implementation="io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmUnlinkedProjectAware"/>
+        <projectOpenProcessor id="swiftpm" implementation="io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmProjectOpenProcessor"/>
+        <toolWindow id="SwiftPM" anchor="right" icon="/icons/swift.svg"
+                    factoryClass="io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmToolWindowFactory"/>
+        <configurationType implementation="io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmTaskConfigurationType"/>
+    </extensions>
+
+    <actions>
+        <action id="SwiftPm.LinkProject" class="io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmLinkProjectAction"
+                text="Link SwiftPM Project" description="Link a SwiftPM package to this project and load it"
+                icon="AllIcons.General.Add">
+            <add-to-group group-id="ExternalSystemView.ActionsToolbar.AttachProjectPanel" anchor="first"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+    </actions>
+    <!-- endregion -->
 </idea-plugin>
