@@ -84,9 +84,10 @@ object SwiftPackageLocator {
      */
     fun commandDirectory(project: Project, packageDir: Path): Path = ReadAction.computeBlocking<Path, RuntimeException> {
         val dir = packageDir.normalize()
-        val roots = SwiftPmProjectModel.linkedPackagePaths(project).map { Path.of(it).normalize() }
-        if (dir in roots) return@computeBlocking dir
-        roots.firstOrNull { root -> dir in SwiftPmProjectModel.editablePackageDirectories(project, root.toString()) } ?: dir
+        // Linked paths are looked up as stored (system-independent), not as this system spells them.
+        val linked = SwiftPmProjectModel.linkedPackagePaths(project)
+        if (linked.any { Path.of(it).normalize() == dir }) return@computeBlocking dir
+        linked.firstOrNull { root -> dir in SwiftPmProjectModel.editablePackageDirectories(project, root) }?.let { Path.of(it).normalize() } ?: dir
     }
 
     /** The nearest directory containing a `Package.swift`: [file] itself if it is one, or one above it. */
