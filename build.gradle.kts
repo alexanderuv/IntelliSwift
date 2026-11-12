@@ -32,6 +32,10 @@ dependencies {
 
     intellijPlatform {
         intellijIdea(providers.gradleProperty("platformVersion"))
+        // Swift Test results: the SM test runner and the test runner UI, content modules of the
+        // bundled "intellij.testRunner.plugin".
+        bundledModule("intellij.platform.smRunner")
+        bundledModule("intellij.platform.testRunner")
         testFramework(TestFrameworkType.Platform)
     }
 }

@@ -1,0 +1,18 @@
+Test Suite 'All tests' started at 2026-11-11 20:46:31.432
+Test Suite 'GreeterPackageTests.xctest' started at 2026-11-11 20:46:31.434
+Test Suite 'GreeterXCTests' started at 2026-11-11 20:46:31.434
+Test Case 'GreeterXCTests.testFailing' started at 2026-11-11 20:46:31.434
+/FIXTURE/Greeter/Tests/GreeterTests/GreeterXCTests.swift:10: error: GreeterXCTests.testFailing : XCTAssertEqual failed: ("HELLO, ADA!") is not equal to ("nope") -
+Test Case 'GreeterXCTests.testFailing' failed (0.108 seconds)
+Test Case 'GreeterXCTests.testGreeting' started at 2026-11-11 20:46:31.542
+Greeting Ada
+Test Case 'GreeterXCTests.testGreeting' passed (0.0 seconds)
+Test Case 'GreeterXCTests.testSkipped' started at 2026-11-11 20:46:31.542
+/FIXTURE/Greeter/Tests/GreeterTests/GreeterXCTests.swift:14: GreeterXCTests.testSkipped : Test skipped - Not ready
+Test Case 'GreeterXCTests.testSkipped' skipped (0.001 seconds)
+Test Suite 'GreeterXCTests' failed at 2026-11-11 20:46:31.543
+	 Executed 3 tests, with 1 test skipped and 1 failure (0 unexpected) in 0.109 (0.109) seconds
+Test Suite 'GreeterPackageTests.xctest' failed at 2026-11-11 20:46:31.543
+	 Executed 3 tests, with 1 test skipped and 1 failure (0 unexpected) in 0.109 (0.109) seconds
+Test Suite 'All tests' failed at 2026-11-11 20:46:31.543
+	 Executed 3 tests, with 1 test skipped and 1 failure (0 unexpected) in 0.109 (0.111) seconds

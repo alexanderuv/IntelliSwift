@@ -1,0 +1,22 @@
+suite+ target:GreeterTests <- 0 'GreeterTests' swift-target://GreeterTests
+test+ swift-testing:GreeterTests.topLevel()/GreeterTests.swift:15:2 <- target:GreeterTests 'topLevel()' swift-testing://GreeterTests.topLevel() @/FIXTURE/Greeter/Tests/GreeterTests/GreeterTests.swift:15:2
+suite+ swift-testing:GreeterTests.GreeterSuite <- target:GreeterTests 'GreeterSuite' swift-testing://GreeterTests.GreeterSuite @/FIXTURE/Greeter/Tests/GreeterTests/GreeterTests.swift:4:2
+suite+ swift-testing:GreeterTests.EdgeCases <- target:GreeterTests 'Edge cases' swift-testing://GreeterTests.EdgeCases @/FIXTURE/Greeter/Tests/GreeterTests/GreeterTests.swift:19:2
+test+ swift-testing:GreeterTests.GreeterSuite/loudGreeting()/GreeterTests.swift:5:6 <- swift-testing:GreeterTests.GreeterSuite 'loudGreeting()' swift-testing://GreeterTests.GreeterSuite/loudGreeting() @/FIXTURE/Greeter/Tests/GreeterTests/GreeterTests.swift:5:6
+suite+ swift-testing:GreeterTests.GreeterSuite/names(name:)/GreeterTests.swift:9:6 <- swift-testing:GreeterTests.GreeterSuite 'names' swift-testing://GreeterTests.GreeterSuite/names(name:) @/FIXTURE/Greeter/Tests/GreeterTests/GreeterTests.swift:9:6
+test+ swift-testing:GreeterTests.EdgeCases/disabled()/GreeterTests.swift:24:6 <- swift-testing:GreeterTests.EdgeCases 'disabled()' swift-testing://GreeterTests.EdgeCases/disabled() @/FIXTURE/Greeter/Tests/GreeterTests/GreeterTests.swift:24:6
+ignored swift-testing:GreeterTests.EdgeCases/disabled()/GreeterTests.swift:24:6 'Not ready'
+test- swift-testing:GreeterTests.EdgeCases/disabled()/GreeterTests.swift:24:6 0ms
+test+ swift-testing:GreeterTests.EdgeCases/failingExpectation()/GreeterTests.swift:20:6 <- swift-testing:GreeterTests.EdgeCases 'failingExpectation()' swift-testing://GreeterTests.EdgeCases/failingExpectation() @/FIXTURE/Greeter/Tests/GreeterTests/GreeterTests.swift:20:6
+test- swift-testing:GreeterTests.GreeterSuite/loudGreeting()/GreeterTests.swift:5:6 0ms
+test+ swift-testing:GreeterTests.GreeterSuite/names(name:)/GreeterTests.swift:9:6#1 <- swift-testing:GreeterTests.GreeterSuite/names(name:)/GreeterTests.swift:9:6 '"Ada"' swift-testing://GreeterTests.GreeterSuite/names(name:)#case="Ada" @/FIXTURE/Greeter/Tests/GreeterTests/GreeterTests.swift:9:6
+test+ swift-testing:GreeterTests.GreeterSuite/names(name:)/GreeterTests.swift:9:6#2 <- swift-testing:GreeterTests.GreeterSuite/names(name:)/GreeterTests.swift:9:6 '"Grace"' swift-testing://GreeterTests.GreeterSuite/names(name:)#case="Grace" @/FIXTURE/Greeter/Tests/GreeterTests/GreeterTests.swift:9:6
+test- swift-testing:GreeterTests.topLevel()/GreeterTests.swift:15:2 0ms
+test- swift-testing:GreeterTests.GreeterSuite/names(name:)/GreeterTests.swift:9:6#1 0ms
+test- swift-testing:GreeterTests.GreeterSuite/names(name:)/GreeterTests.swift:9:6#2 0ms
+suite- swift-testing:GreeterTests.GreeterSuite/names(name:)/GreeterTests.swift:9:6
+suite- swift-testing:GreeterTests.GreeterSuite
+failed swift-testing:GreeterTests.EdgeCases/failingExpectation()/GreeterTests.swift:20:6 'Expectation failed: Greeter(name: "Ada").greeting() == "nope"' [/FIXTURE/Greeter/Tests/GreeterTests/GreeterTests.swift:21:9: Expectation failed: Greeter(name: "Ada").greeting() == "nope" |     Greeter(name: "Ada").greeting() == "nope" → false |       Greeter(name: "Ada").greeting() → "Hello, Ada."]
+test- swift-testing:GreeterTests.EdgeCases/failingExpectation()/GreeterTests.swift:20:6 1ms
+suite- swift-testing:GreeterTests.EdgeCases
+suite- target:GreeterTests

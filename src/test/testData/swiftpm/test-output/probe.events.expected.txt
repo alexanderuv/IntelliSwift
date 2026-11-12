@@ -1,0 +1,46 @@
+suite+ target:ProbeTests <- 0 'ProbeTests' swift-target://ProbeTests
+suite+ swift-testing:ProbeTests.unlabeled(_:)/Nested.swift:33:2 <- target:ProbeTests 'unlabeled(_:)' swift-testing://ProbeTests.unlabeled(_:) @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:33:2
+suite+ swift-testing:ProbeTests.Outer <- target:ProbeTests 'Outer' swift-testing://ProbeTests.Outer @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:13:6
+suite+ swift-testing:ProbeTests.Throwing <- target:ProbeTests 'Throwing' swift-testing://ProbeTests.Throwing @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:28:2
+suite+ swift-testing:ProbeTests.Off <- target:ProbeTests 'Off' swift-testing://ProbeTests.Off @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:19:2
+suite+ swift-testing:ProbeTests.Off/Deeper <- swift-testing:ProbeTests.Off 'Deeper' swift-testing://ProbeTests.Off/Deeper @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:21:6
+test+ swift-testing:ProbeTests.Off/Deeper/b()/Nested.swift:22:10 <- swift-testing:ProbeTests.Off/Deeper 'b()' swift-testing://ProbeTests.Off/Deeper/b() @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:22:10
+ignored swift-testing:ProbeTests.Off/Deeper/b()/Nested.swift:22:10 'Off for now'
+test- swift-testing:ProbeTests.Off/Deeper/b()/Nested.swift:22:10 0ms
+test+ swift-testing:ProbeTests.Off/a()/Nested.swift:20:6 <- swift-testing:ProbeTests.Off 'a()' swift-testing://ProbeTests.Off/a() @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:20:6
+ignored swift-testing:ProbeTests.Off/a()/Nested.swift:20:6 'Off for now'
+test- swift-testing:ProbeTests.Off/a()/Nested.swift:20:6 0ms
+suite- swift-testing:ProbeTests.Off/Deeper
+suite- swift-testing:ProbeTests.Off
+test+ swift-testing:ProbeTests.thrower()/Nested.swift:17:2 <- target:ProbeTests 'thrower()' swift-testing://ProbeTests.thrower() @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:17:2
+test+ swift-testing:ProbeTests.known()/Nested.swift:16:2 <- target:ProbeTests 'known()' swift-testing://ProbeTests.known() @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:16:2
+test+ swift-testing:ProbeTests.unlabeled(_:)/Nested.swift:33:2#1 <- swift-testing:ProbeTests.unlabeled(_:)/Nested.swift:33:2 '"x"' swift-testing://ProbeTests.unlabeled(_:)#case="x" @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:33:2
+suite+ swift-testing:ProbeTests.Outer/Inner <- swift-testing:ProbeTests.Outer 'Inner' swift-testing://ProbeTests.Outer/Inner @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:6:6
+test+ swift-testing:ProbeTests.Outer/fromExtension()/Nested.swift:13:6 <- swift-testing:ProbeTests.Outer 'fromExtension()' swift-testing://ProbeTests.Outer/fromExtension() @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:13:6
+suite+ swift-testing:ProbeTests.Outer/cases(n:)/Nested.swift:9:6 <- swift-testing:ProbeTests.Outer 'cases(n:)' swift-testing://ProbeTests.Outer/cases(n:) @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:9:6
+test+ swift-testing:ProbeTests.Throwing/t()/Nested.swift:30:6 <- swift-testing:ProbeTests.Throwing 't()' swift-testing://ProbeTests.Throwing/t() @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:30:6
+test- swift-testing:ProbeTests.unlabeled(_:)/Nested.swift:33:2#1 0ms
+test+ swift-testing:ProbeTests.Outer/Inner/deep()/Nested.swift:7:10 <- swift-testing:ProbeTests.Outer/Inner 'deep()' swift-testing://ProbeTests.Outer/Inner/deep() @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:7:10
+test- swift-testing:ProbeTests.Outer/fromExtension()/Nested.swift:13:6 0ms
+test+ swift-testing:ProbeTests.Outer/cases(n:)/Nested.swift:9:6#1 <- swift-testing:ProbeTests.Outer/cases(n:)/Nested.swift:9:6 '1' swift-testing://ProbeTests.Outer/cases(n:)#case=1 @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:9:6
+test+ swift-testing:ProbeTests.Outer/cases(n:)/Nested.swift:9:6#2 <- swift-testing:ProbeTests.Outer/cases(n:)/Nested.swift:9:6 '2' swift-testing://ProbeTests.Outer/cases(n:)#case=2 @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:9:6
+suite- swift-testing:ProbeTests.unlabeled(_:)/Nested.swift:33:2
+test- swift-testing:ProbeTests.Outer/Inner/deep()/Nested.swift:7:10 0ms
+suite- swift-testing:ProbeTests.Outer/Inner
+test+ swift-testing:ProbeTests.Outer/cases(n:)/Nested.swift:9:6#3 <- swift-testing:ProbeTests.Outer/cases(n:)/Nested.swift:9:6 '3' swift-testing://ProbeTests.Outer/cases(n:)#case=3 @/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:9:6
+test- swift-testing:ProbeTests.Outer/cases(n:)/Nested.swift:9:6#1 0ms
+failed swift-testing:ProbeTests.thrower()/Nested.swift:17:2 'Caught error: Error Domain=x Code=1 "(null)"' [/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:17:2: Caught error: Error Domain=x Code=1 "(null)"]
+test- swift-testing:ProbeTests.thrower()/Nested.swift:17:2 1ms
+test- swift-testing:ProbeTests.Outer/cases(n:)/Nested.swift:9:6#3 0ms
+failed swift-testing:ProbeTests.Throwing/t()/Nested.swift:30:6 'Caught error: Failure()' [/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:30:6: Caught error: Failure()]
+test- swift-testing:ProbeTests.Throwing/t()/Nested.swift:30:6 1ms
+suite- swift-testing:ProbeTests.Throwing
+out swift-testing:ProbeTests.known()/Nested.swift:16:2 'Known issue: Expectation failed: Bool(false) (/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:16:39)
+  Bool(false) → false
+    false → ()'
+failed swift-testing:ProbeTests.Outer/cases(n:)/Nested.swift:9:6#2 'Expectation failed: n != 2' [/FIXTURE/Probe/Tests/ProbeTests/Nested.swift:9:54: Expectation failed: n != 2 |     n != 2 → false |       n → 2]
+test- swift-testing:ProbeTests.Outer/cases(n:)/Nested.swift:9:6#2 1ms
+test- swift-testing:ProbeTests.known()/Nested.swift:16:2 1ms
+suite- swift-testing:ProbeTests.Outer/cases(n:)/Nested.swift:9:6
+suite- swift-testing:ProbeTests.Outer
+suite- target:ProbeTests

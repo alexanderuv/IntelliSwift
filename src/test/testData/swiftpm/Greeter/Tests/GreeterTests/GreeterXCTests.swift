@@ -9,4 +9,8 @@ final class GreeterXCTests: XCTestCase {
     func testFailing() {
         XCTAssertEqual(Greeter(name: "Ada").greeting(loud: true), "nope")
     }
+
+    func testSkipped() throws {
+        throw XCTSkip("Not ready")
+    }
 }

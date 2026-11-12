@@ -10,6 +10,15 @@
 
     <depends>com.intellij.modules.platform</depends>
 
+    <!-- SwiftPM execution: run configurations, line markers and producers need the lang module;
+         the Swift Test tree needs the SM test runner, content modules of the bundled
+         intellij.testRunner.plugin. -->
+    <depends>com.intellij.modules.lang</depends>
+    <dependencies>
+        <module name="intellij.platform.smRunner"/>
+        <module name="intellij.platform.testRunner"/>
+    </dependencies>
+
     <extensions defaultExtensionNs="com.intellij">
         <fileType name="Swift" implementationClass="io.github.alexanderuv.intelliswift.lang.SwiftFileType"
                   fieldName="INSTANCE" language="Swift" extensions="swift"/>
@@ -38,5 +47,14 @@
         <!-- Toolchain -->
         <applicationConfigurable parentId="language" id="intelliswift.toolchain" displayName="Swift"
                                  instance="io.github.alexanderuv.intelliswift.toolchain.SwiftToolchainConfigurable"/>
+
+        <!-- region SwiftPM execution: Swift Run / Swift Test configurations, test tree, gutter markers -->
+        <configurationType implementation="io.github.alexanderuv.intelliswift.swiftpm.execution.run.SwiftRunConfigurationType"/>
+        <configurationType implementation="io.github.alexanderuv.intelliswift.swiftpm.execution.test.SwiftTestConfigurationType"/>
+        <runConfigurationProducer implementation="io.github.alexanderuv.intelliswift.swiftpm.execution.SwiftTestConfigurationProducer"/>
+        <runConfigurationProducer implementation="io.github.alexanderuv.intelliswift.swiftpm.execution.SwiftRunConfigurationProducer"/>
+        <runLineMarkerContributor language="Swift"
+                                  implementationClass="io.github.alexanderuv.intelliswift.swiftpm.execution.SwiftRunLineMarkerContributor"/>
+        <!-- endregion SwiftPM execution -->
     </extensions>
 </idea-plugin>
