@@ -220,6 +220,12 @@ class SwiftPmImportTest : HeavyPlatformTestCase() {
         // Plugin targets are not in Sources/ or Tests/; only the imported data knows them.
         assertEquals(SwiftBuildScope(fixture.greeter, "Lint"), SwiftPackageLocator.scopeOf(module("Greeter.Lint")))
         assertEquals(SwiftBuildScope(fixture.greeter, "Lint"), SwiftPackageLocator.scopeOf(project, file(fixture.greeter.resolve("Plugins/Lint/Lint.swift"))))
+
+        // Utils is a `path:` dependency of Greeter: its commands run in Greeter's directory, as in syncs.
+        assertEquals(fixture.greeter, SwiftPackageLocator.commandDirectory(project, fixture.greeter))
+        assertEquals(fixture.greeter, SwiftPackageLocator.commandDirectory(project, fixture.utils))
+        val unrelated = fixture.greeter.resolveSibling("Unrelated")
+        assertEquals(unrelated, SwiftPackageLocator.commandDirectory(project, unrelated))
     }
 
     fun `test tasks run swift and stream its output`() {

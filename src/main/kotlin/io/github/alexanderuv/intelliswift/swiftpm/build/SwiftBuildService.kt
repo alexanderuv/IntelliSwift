@@ -148,7 +148,7 @@ enum class SwiftBuildResult(private val aborted: Boolean, private val errors: Bo
 
 /** One build: the Build tool window entry and the `swift` processes behind it. Runs on a background thread. */
 private class SwiftBuildRun(
-    project: Project,
+    private val project: Project,
     private val builds: List<SwiftBuildRequest>,
     private val configuration: SwiftBuildConfiguration,
     private val title: String,
@@ -212,7 +212,8 @@ private class SwiftBuildRun(
             if (build.clean) append(", clean")
         }
         send(StartEvent.builder(stepId, stepTitle).withParentId(buildId).build())
-        val outcome = toolchainFor(build, stepId)?.let { build(it, build, stepId) } ?: Outcome.FAILURE
+        val workingDirectory = SwiftPackageLocator.commandDirectory(project, build.scope.packageDir)
+        val outcome = toolchainFor(workingDirectory, stepId)?.let { build(it, build, workingDirectory, stepId) } ?: Outcome.FAILURE
         val result: EventResult = when (outcome) {
             Outcome.SUCCESS -> SuccessResultImpl()
             Outcome.FAILURE -> FailureResultImpl()
@@ -223,20 +224,20 @@ private class SwiftBuildRun(
     }
 
     /**
-     * The toolchain [build] runs with, after the same checks as syncs and SwiftPM tasks: an
-     * executable, runnable, supported `swift`. Checked per package, in its directory, since the
-     * toolchain may be a proxy that picks one by the directory (swiftly's `.swift-version`).
+     * The toolchain that runs in [workingDirectory], after the same checks as syncs and SwiftPM
+     * tasks: an executable, runnable, supported `swift`. Checked per build, since the toolchain may
+     * be a proxy that picks one by the directory (swiftly's `.swift-version`).
      */
-    private fun toolchainFor(build: SwiftBuildRequest, stepId: Any): SwiftToolchain? = try {
-        SwiftPmToolchains.require(build.scope.packageDir)
+    private fun toolchainFor(workingDirectory: Path, stepId: Any): SwiftToolchain? = try {
+        SwiftPmToolchains.require(workingDirectory)
     } catch (e: ExternalSystemException) {
         error(stepId, "No usable Swift toolchain", e.message.orEmpty())
         null
     }
 
-    private fun build(toolchain: SwiftToolchain, build: SwiftBuildRequest, stepId: Any): Outcome {
+    private fun build(toolchain: SwiftToolchain, build: SwiftBuildRequest, workingDirectory: Path, stepId: Any): Outcome {
         val errorsBefore = errors.get()
-        val commands = SwiftPackageCommands(toolchain, build.scope.packageDir)
+        val commands = SwiftPackageCommands(toolchain, build.scope.packageDir, workingDirectory)
         return try {
             val cleanExit = if (build.clean) run(commands.clean(), stepId) else 0
             val exitCode = if (cleanExit == 0) {

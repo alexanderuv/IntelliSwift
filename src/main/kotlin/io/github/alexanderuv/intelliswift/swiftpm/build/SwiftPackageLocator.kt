@@ -8,6 +8,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
+import io.github.alexanderuv.intelliswift.swiftpm.cli.SwiftPackageCommands
 import io.github.alexanderuv.intelliswift.swiftpm.model.SwiftPackage
 import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPackageModuleType
 import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPm
@@ -73,6 +74,19 @@ object SwiftPackageLocator {
         val pkg = SwiftPmProjectModel.packageFor(project, file)
         if (pkg != null) return@computeBlocking SwiftBuildScope(Path.of(pkg.packagePath).normalize(), null)
         layoutScope(file)
+    }
+
+    /**
+     * The directory `swift` commands for the package in [packageDir] run in, which picks the
+     * toolchain when `swift` is a proxy such as swiftly (see [SwiftPackageCommands]): for an
+     * editable (`path:`) dependency of a linked root package, the root's directory, as in syncs;
+     * otherwise [packageDir] itself. A dependency of several linked roots uses the first one's.
+     */
+    fun commandDirectory(project: Project, packageDir: Path): Path = ReadAction.computeBlocking<Path, RuntimeException> {
+        val dir = packageDir.normalize()
+        val roots = SwiftPmProjectModel.linkedPackagePaths(project).map { Path.of(it).normalize() }
+        if (dir in roots) return@computeBlocking dir
+        roots.firstOrNull { root -> dir in SwiftPmProjectModel.editablePackageDirectories(project, root.toString()) } ?: dir
     }
 
     /** The nearest directory containing a `Package.swift`: [file] itself if it is one, or one above it. */
