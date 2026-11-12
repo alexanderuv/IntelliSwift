@@ -1,4 +1,5 @@
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -13,6 +14,11 @@ kotlin {
     jvmToolchain(25)
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_25)
+        // Classes inherit the platform interfaces' JVM default methods instead of getting `super`
+        // stubs for them. The stubs exist for consumers compiled against DefaultImpls, which a
+        // plugin has none of, and they made the plugin verifier report the platform's own internal
+        // and deprecated default methods (ExternalSystemUnlinkedProjectAware) as used by us.
+        jvmDefault.set(JvmDefaultMode.NO_COMPATIBILITY)
         allWarningsAsErrors.set(false)
     }
 }
