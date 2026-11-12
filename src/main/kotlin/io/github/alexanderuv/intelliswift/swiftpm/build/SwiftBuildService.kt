@@ -33,6 +33,7 @@ import io.github.alexanderuv.intelliswift.swiftpm.cli.SwiftBuildConfiguration
 import io.github.alexanderuv.intelliswift.swiftpm.cli.SwiftCommandRunner
 import io.github.alexanderuv.intelliswift.swiftpm.cli.SwiftPackageCommands
 import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPm
+import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmPathMapping
 import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmToolchains
 import io.github.alexanderuv.intelliswift.toolchain.SwiftToolchain
 import kotlinx.coroutines.CancellationException
@@ -239,9 +240,10 @@ private class SwiftBuildRun(
         val errorsBefore = errors.get()
         val commands = SwiftPackageCommands(toolchain, build.scope.packageDir, workingDirectory)
         return try {
-            val cleanExit = if (build.clean) run(commands.clean(), stepId) else 0
+            val paths = SwiftPmPathMapping(build.scope.packageDir)
+            val cleanExit = if (build.clean) run(commands.clean(), stepId, paths) else 0
             val exitCode = if (cleanExit == 0) {
-                run(commands.build(configuration, target = build.scope.target, buildTests = build.buildTests), stepId)
+                run(commands.build(configuration, target = build.scope.target, buildTests = build.buildTests), stepId, paths)
             } else {
                 cleanExit
             }
@@ -258,12 +260,12 @@ private class SwiftBuildRun(
         }
     }
 
-    /** Runs [command], showing its output under [stepId] and parsing it; returns the exit code. */
-    private fun run(command: GeneralCommandLine, stepId: Any): Int {
+    /** Runs [command], showing its output under [stepId] and parsing it with [paths] for its file paths; returns the exit code. */
+    private fun run(command: GeneralCommandLine, stepId: Any, paths: SwiftPmPathMapping): Int {
         // Plain text: the parser strips colors anyway, and the console would show the OSC 8 links as text.
         command.withEnvironment("NO_COLOR", "1")
         output("${command.commandLineString}\n", stepId, ProcessOutputType.SYSTEM)
-        val reader = BuildOutputInstantReaderImpl(buildId, stepId, listener, listOf(SwiftBuildOutputParser()))
+        val reader = BuildOutputInstantReaderImpl(buildId, stepId, listener, listOf(SwiftBuildOutputParser(paths::map)))
         try {
             return SwiftCommandRunner.run(command, cancelled = { cancelled }) { text, outputType ->
                 if (!ProcessOutputType.isSystem(outputType) && text.isNotEmpty()) {

@@ -6,6 +6,7 @@ import com.intellij.build.events.MessageEvent
 import com.intellij.build.events.ProgressBuildEvent
 import com.intellij.build.output.BuildOutputInstantReader
 import com.intellij.build.output.BuildOutputParser
+import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmPathMapping
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
 import java.util.function.Consumer
@@ -30,8 +31,11 @@ import java.util.function.Consumer
  *
  * Use one instance per build: it remembers what it reported, to drop the diagnostics SwiftPM
  * repeats (swift-build prints a diagnostic once per compile step that hits it).
+ *
+ * SwiftPM prints physical paths, with symbolic links resolved; [mapPath] maps them back to the
+ * paths the IDE knows the files by (see [SwiftPmPathMapping]), so messages open the project's files.
  */
-class SwiftBuildOutputParser : BuildOutputParser {
+class SwiftBuildOutputParser(private val mapPath: (Path) -> Path = { it }) : BuildOutputParser {
     private val reported = HashSet<String>()
     private var errorCount = 0
     private val unreportedTaskFailures = ArrayList<String>()
@@ -138,7 +142,7 @@ class SwiftBuildOutputParser : BuildOutputParser {
 
     private fun undefinedReference(m: MatchResult, description: String, out: Emitter) {
         val (path, line, symbol) = m.destructured
-        val position = Location(path, line.toIntOrNull(), null).filePosition()
+        val position = Location(path, line.toIntOrNull(), null).filePosition(mapPath)
         out.message(MessageEvent.Kind.ERROR, "Undefined reference to $symbol", description, GROUP_LINKER, position)
     }
 
@@ -279,9 +283,9 @@ class SwiftBuildOutputParser : BuildOutputParser {
                 note.lines.joinTo(this, "\n")
             }
         }
-        if (!out.message(diagnostic.kind, diagnostic.title, description, GROUP_COMPILER, diagnostic.location.filePosition(), diagnostic.location)) return
+        if (!out.message(diagnostic.kind, diagnostic.title, description, GROUP_COMPILER, diagnostic.location.filePosition(mapPath), diagnostic.location)) return
         for (note in diagnostic.notes) {
-            out.message(note.kind, note.title, description, GROUP_COMPILER, note.location.filePosition(), note.location)
+            out.message(note.kind, note.title, description, GROUP_COMPILER, note.location.filePosition(mapPath), note.location)
         }
     }
 
@@ -289,10 +293,10 @@ class SwiftBuildOutputParser : BuildOutputParser {
 
     private class Location(val path: String, val line: Int?, val column: Int?) {
         /** Where to navigate, for a real file; compilers also report synthesized buffers such as `Module.Type.init`. */
-        fun filePosition(): FilePosition? {
+        fun filePosition(mapPath: (Path) -> Path): FilePosition? {
             val file = try { Path.of(path) } catch (_: InvalidPathException) { null } ?: return null
             if (!file.isAbsolute) return null
-            return FilePosition(file, ((line ?: 1) - 1).coerceAtLeast(0), ((column ?: 1) - 1).coerceAtLeast(0))
+            return FilePosition(mapPath(file), ((line ?: 1) - 1).coerceAtLeast(0), ((column ?: 1) - 1).coerceAtLeast(0))
         }
 
         override fun toString(): String = "$path:${line ?: ""}:${column ?: ""}"

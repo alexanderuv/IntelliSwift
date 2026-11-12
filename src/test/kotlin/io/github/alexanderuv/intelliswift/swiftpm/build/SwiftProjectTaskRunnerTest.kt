@@ -309,6 +309,34 @@ class SwiftProjectTaskRunnerTest : HeavyPlatformTestCase() {
         assertFalse(output, "--package-path ${root.resolve("Old")}" in output)
     }
 
+    fun `test diagnostics of a package reached through a symbolic link open its linked path`() {
+        if (SystemInfo.isWindows) return
+        // Like SwiftPM, the stand-in prints the physical path: it resolves symbolic links in --package-path.
+        val swift = root.resolve("bin/swift").also { it.parent.createDirectories() }
+        swift.writeText(
+            """
+            #!/bin/sh
+            if [ "$1" = "--version" ]; then echo "Swift version 6.1"; exit 0; fi
+            echo "$(cd "$3" && pwd -P)/Sources/Lib/Lib.swift:2:5: error: boom"
+            exit 1
+            """.trimIndent() + "\n",
+        )
+        swift.toFile().setExecutable(true)
+        val settings = SwiftToolchainSettings.getInstance()
+        val configured = settings.swiftPath
+        settings.swiftPath = swift.toString()
+        Disposer.register(testRootDisposable) { settings.swiftPath = configured }
+        Files.createSymbolicLink(root.resolve("Linked"), root.resolve("Pkg"))
+        val module = module("Linked", SwiftPackageModuleType.ID, "Linked")
+        val view = recordBuildEvents()
+
+        val result = PlatformTestUtil.waitForPromise(ProjectTaskManager.getInstance(project).build(module), BUILD_TIMEOUT_MS)!!
+
+        assertTrue(result.hasErrors())
+        val error = view.events.filterIsInstance<FileMessageEvent>().single { it.kind == MessageEvent.Kind.ERROR }
+        assertEquals(root.resolve("Linked/Sources/Lib/Lib.swift"), error.filePosition.path)
+    }
+
     fun `test stop cancels the build`() {
         if (!toolchainAvailable()) return
         copyFixture("Greeter", "Utils")
