@@ -31,6 +31,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.testFramework.HeavyPlatformTestCase
 import io.github.alexanderuv.intelliswift.swiftpm.build.SwiftBuildScope
 import io.github.alexanderuv.intelliswift.swiftpm.build.SwiftPackageLocator
+import io.github.alexanderuv.intelliswift.swiftpm.execution.SwiftPackageDescriptions
 import io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmExecutionSettings
 import io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmProjectSettings
 import io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmSettings
@@ -226,6 +227,21 @@ class SwiftPmImportTest : HeavyPlatformTestCase() {
         assertEquals(fixture.greeter, SwiftPackageLocator.commandDirectory(project, fixture.utils))
         val unrelated = fixture.greeter.resolveSibling("Unrelated")
         assertEquals(unrelated, SwiftPackageLocator.commandDirectory(project, unrelated))
+    }
+
+    /** Run configurations and gutter markers read targets and executable products from the imported data. */
+    fun `test run and test lookups use the imported targets`() {
+        val fixture = linkAndLoadGreeter("run lookups") ?: return
+        val descriptions = SwiftPackageDescriptions.getInstance(project)
+        runReadActionBlocking {
+            val main = descriptions.targetOf(file(fixture.greeter.resolve("Sources/greet/main.swift")))!!
+            assertEquals("greet", main.targetName)
+            assertEquals(listOf("greet"), main.executableProducts)
+            val tests = descriptions.targetOf(file(fixture.greeter.resolve("Tests/GreeterTests/GreeterTests.swift")))!!
+            assertEquals("GreeterTests", tests.moduleName)
+            assertTrue(tests.isTest)
+            assertEquals("Utils", descriptions.targetOf(file(fixture.utils.resolve("Sources/Utils/Strings.swift")))?.targetName)
+        }
     }
 
     fun `test tasks run swift and stream its output`() {

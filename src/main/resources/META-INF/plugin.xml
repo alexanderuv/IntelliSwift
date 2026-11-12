@@ -7,10 +7,13 @@
         <p>A native lexer and parser, validated against swift-syntax, give Swift 6 files a full PSI tree:
         syntax highlighting, structure view, folding, brace matching and commenting.</p>
         <p>SwiftPM packages are imported like Gradle projects: modules per package and target,
-        dependencies, auto-reload, a SwiftPM tool window and Build Project with navigable diagnostics.</p>
+        dependencies, auto-reload, a SwiftPM tool window, Build Project with navigable diagnostics,
+        and Swift Run / Swift Test configurations with a test tree for XCTest and Swift Testing.</p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
+    <!-- Run configurations, line markers and producers (SwiftPM execution). -->
+    <depends>com.intellij.modules.lang</depends>
     <!-- SwiftPM integration (ADR 0002) is built on the External System. -->
     <depends>com.intellij.modules.externalSystem</depends>
     <dependencies>
@@ -19,6 +22,9 @@
         <!-- The External System's settings page, tool window, open provider, trust dialog and
              ExternalSystemUtil (project import). -->
         <module name="intellij.platform.externalSystem.impl"/>
+        <!-- The Swift Test tree: the SM test runner, content modules of the bundled intellij.testRunner.plugin. -->
+        <module name="intellij.platform.smRunner"/>
+        <module name="intellij.platform.testRunner"/>
     </dependencies>
 
     <extensions defaultExtensionNs="com.intellij">
@@ -61,6 +67,15 @@
                              displayName="Build"
                              instance="io.github.alexanderuv.intelliswift.swiftpm.build.SwiftBuildConfigurable"/>
         <!-- endregion -->
+
+        <!-- region SwiftPM execution: Swift Run / Swift Test configurations, test tree, gutter markers -->
+        <configurationType implementation="io.github.alexanderuv.intelliswift.swiftpm.execution.run.SwiftRunConfigurationType"/>
+        <configurationType implementation="io.github.alexanderuv.intelliswift.swiftpm.execution.test.SwiftTestConfigurationType"/>
+        <runConfigurationProducer implementation="io.github.alexanderuv.intelliswift.swiftpm.execution.SwiftTestConfigurationProducer"/>
+        <runConfigurationProducer implementation="io.github.alexanderuv.intelliswift.swiftpm.execution.SwiftRunConfigurationProducer"/>
+        <runLineMarkerContributor language="Swift"
+                                  implementationClass="io.github.alexanderuv.intelliswift.swiftpm.execution.SwiftRunLineMarkerContributor"/>
+        <!-- endregion SwiftPM execution -->
     </extensions>
 
     <!-- region SwiftPM project import (External System, ADR 0002) -->
