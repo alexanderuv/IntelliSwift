@@ -1,0 +1,106 @@
+package io.github.alexanderuv.intelliswift.swiftpm.project
+
+import com.intellij.openapi.externalSystem.model.DataNode
+import com.intellij.openapi.externalSystem.model.ProjectKeys
+import com.intellij.openapi.externalSystem.model.project.ModuleData
+import com.intellij.openapi.externalSystem.model.project.ProjectData
+import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil
+import com.intellij.openapi.module.Module
+import com.intellij.openapi.module.ModuleManager
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.ProjectFileIndex
+import com.intellij.openapi.util.Key
+import com.intellij.openapi.vfs.VirtualFile
+import io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmSettings
+import java.nio.file.Path
+
+/**
+ * Reads the imported SwiftPM model back: which package, target and IDE module a file or module
+ * belongs to. Build, run and test features use this rather than walking the data nodes
+ * themselves; see [SwiftPackageData] for the shape of the tree.
+ *
+ * Everything here reads the External System's cached project data, so it reflects the last
+ * successful sync and returns `null` for projects that were never loaded.
+ */
+object SwiftPmProjectModel {
+
+    /** The external project paths (root package directories) of the linked SwiftPM packages. */
+    fun linkedPackagePaths(project: Project): List<String> =
+        SwiftPmSettings.getInstance(project).linkedProjectsSettings.map { it.externalProjectPath }
+
+    /** The imported structure of the package linked at [linkedPath], if it was loaded. */
+    fun projectNode(project: Project, linkedPath: String): DataNode<ProjectData>? =
+        ExternalSystemApiUtil.findProjectNode(project, SwiftPm.SYSTEM_ID, linkedPath)
+
+    /** All packages of all linked graphs: editable ones and checkouts. */
+    fun packages(project: Project): List<SwiftPackageData> =
+        linkedPackagePaths(project).flatMap { path ->
+            projectNode(project, path)?.let { ExternalSystemApiUtil.findAllRecursively(it, SwiftPackageData.KEY).map(DataNode<SwiftPackageData>::getData) }.orEmpty()
+        }
+
+    /**
+     * The directories whose `Package.swift` and `Package.resolved` affect the package linked at
+     * [linkedPath]: the root and every editable package of its graph.
+     */
+    fun editablePackageDirectories(project: Project, linkedPath: String): List<Path> {
+        val root = Path.of(linkedPath).normalize()
+        val editable = projectNode(project, linkedPath)
+            ?.let { ExternalSystemApiUtil.findAllRecursively(it, SwiftPackageData.KEY) }
+            .orEmpty()
+            .map { it.data }
+            .filter { it.editable }
+            .map { Path.of(it.packagePath).normalize() }
+        return (listOf(root) + editable).distinct()
+    }
+
+    /** The External System data node [module] was imported from, if it is a SwiftPM module. */
+    fun moduleNode(module: Module): DataNode<ModuleData>? {
+        if (!ExternalSystemApiUtil.isExternalSystemAwareModule(SwiftPm.SYSTEM_ID, module)) return null
+        val id = ExternalSystemApiUtil.getExternalProjectId(module) ?: return null
+        val rootPath = ExternalSystemApiUtil.getExternalRootProjectPath(module) ?: return null
+        val projectNode = projectNode(module.project, rootPath) ?: return null
+        return moduleIndex(projectNode)[id]
+    }
+
+    /**
+     * The module nodes of [projectNode] by id. Built once per imported tree and kept on its root:
+     * a reload replaces the tree, and the index with it. Build and gutter features look modules up
+     * per file and per element, which would otherwise walk the whole tree each time.
+     */
+    private fun moduleIndex(projectNode: DataNode<ProjectData>): Map<String, DataNode<ModuleData>> =
+        projectNode.getUserData(MODULE_INDEX) ?: projectNode.putUserDataIfAbsent(
+            MODULE_INDEX,
+            ExternalSystemApiUtil.findAllRecursively(projectNode, ProjectKeys.MODULE).associateBy { it.data.id },
+        )
+
+    private val MODULE_INDEX = Key.create<Map<String, DataNode<ModuleData>>>("SwiftPM module nodes by id")
+
+    /** The target [module] was imported from; `null` for a package module or a non-SwiftPM module. */
+    fun targetOf(module: Module): SwiftTargetData? = moduleNode(module)?.let { ExternalSystemApiUtil.find(it, SwiftTargetData.KEY)?.data }
+
+    /** The package [module] belongs to: the package of a package module, or of a target module. */
+    fun packageOf(module: Module): SwiftPackageData? {
+        var node: DataNode<*>? = moduleNode(module)
+        while (node != null && node.key == ProjectKeys.MODULE) {
+            ExternalSystemApiUtil.find(node, SwiftPackageData.KEY)?.let { return it.data }
+            node = node.parent
+        }
+        return null
+    }
+
+    /** The module [file] belongs to, if it is a SwiftPM module: a target module for sources. */
+    fun moduleFor(project: Project, file: VirtualFile): Module? =
+        ProjectFileIndex.getInstance(project).getModuleForFile(file)?.takeIf { ExternalSystemApiUtil.isExternalSystemAwareModule(SwiftPm.SYSTEM_ID, it) }
+
+    /** The target whose sources contain [file]. */
+    fun targetFor(project: Project, file: VirtualFile): SwiftTargetData? = moduleFor(project, file)?.let(::targetOf)
+
+    /** The package containing [file], also for files outside any target (such as `Package.swift`). */
+    fun packageFor(project: Project, file: VirtualFile): SwiftPackageData? = moduleFor(project, file)?.let(::packageOf)
+
+    /** The IDE module of [target] of the package at [packagePath], once imported. */
+    fun moduleForTarget(project: Project, packagePath: String, target: String): Module? =
+        ModuleManager.getInstance(project).modules.firstOrNull { module ->
+            targetOf(module)?.let { it.name == target && Path.of(it.packagePath) == Path.of(packagePath) } == true
+        }
+}

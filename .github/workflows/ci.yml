@@ -24,6 +24,9 @@ jobs:
           distribution: temurin
           java-version: 25
       - uses: gradle/actions/setup-gradle@v6
+      # The SwiftPM import, build and test-run tests use the runner's Swift and skip without it.
+      - name: Swift version
+        run: swift --version
       - name: Build and test
         run: ./gradlew buildPlugin test
       - name: Upload test reports
