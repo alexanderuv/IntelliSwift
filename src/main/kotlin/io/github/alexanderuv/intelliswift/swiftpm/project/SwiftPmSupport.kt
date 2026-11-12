@@ -43,7 +43,7 @@ internal object SwiftPmToolchains {
     fun require(packageDir: Path): SwiftToolchain {
         val settings = SwiftToolchainSettings.getInstance()
         val configured = settings.swiftPath
-        val toolchain = settings.toolchain()
+        val toolchain = settings.toolchain(packageDir)
             ?: throw ExternalSystemException(
                 if (configured != null) "The configured Swift executable is not a valid path: $configured. $SETTINGS_HINT"
                 else "No Swift toolchain found. Install Swift, or configure the toolchain in Settings | Languages & Frameworks | Swift.",
