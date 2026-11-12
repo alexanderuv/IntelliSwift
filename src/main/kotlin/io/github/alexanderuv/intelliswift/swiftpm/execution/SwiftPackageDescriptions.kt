@@ -131,7 +131,8 @@ class SwiftPackageDescriptions(private val project: Project) : Disposable {
         val stamp = stamp(packageDir) ?: throw IllegalArgumentException("No ${SwiftPackage.MANIFEST} in $packageDir")
         cache[packageDir]?.takeIf { it.stamp == stamp }?.pkg?.let { return it }
         if (!isTrusted(packageDir)) throw CannotDescribeException("The package in $packageDir is not trusted.")
-        val toolchain = SwiftToolchainSettings.toolchain()?.takeIf { it.isValid }
+        // `describe` runs in the package's directory, so the default toolchain is chosen for that directory.
+        val toolchain = SwiftToolchainSettings.toolchain(packageDir)?.takeIf { it.isValid }
             ?: throw CannotDescribeException("No usable Swift toolchain. Configure it in Settings | Languages & Frameworks | Swift.")
         val describe = SwiftCommandRunner.runChecked(SwiftPackageCommands(toolchain, packageDir).describe(), cancelled)
         // SwiftPM prints physical paths; the editor's files keep the symbolic links they were opened through.
