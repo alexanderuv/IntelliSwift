@@ -212,7 +212,7 @@ class SwiftPmImportTest : HeavyPlatformTestCase() {
         assertTrue(unlinked.isBuildFile(project, file(greeter.resolve("Package.swift"))))
         assertFalse(unlinked.isBuildFile(project, file(greeter.resolve("Sources/Greeter/Greeter.swift"))))
         assertTrue(unlinked.isLinkedProject(project, greeterPath))
-        assertEquals(setOf(greeterPath), unlinked.getLinkedProjectsPaths(project))
+        assertEquals(listOf(greeterPath), SwiftPmProjectModel.linkedPackagePaths(project))
 
         val opener = SwiftPmProjectOpenProcessor()
         assertTrue(opener.canOpenProject(file(greeter)))

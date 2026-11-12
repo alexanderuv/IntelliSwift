@@ -1,9 +1,10 @@
 package io.github.alexanderuv.intelliswift.toolchain
 
 import com.intellij.execution.configurations.GeneralCommandLine
-import com.intellij.execution.configurations.PathEnvironmentVariableUtil
 import com.intellij.execution.process.CapturingProcessHandler
 import com.intellij.openapi.util.SystemInfo
+import com.intellij.util.EnvironmentUtil
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.isDirectory
@@ -22,7 +23,7 @@ object SwiftToolchainDetector {
         val exe = if (SystemInfo.isWindows) "swift.exe" else "swift"
         val home = Path.of(System.getProperty("user.home"))
 
-        PathEnvironmentVariableUtil.findInPath(exe)?.let { yield(it.toPath()) }
+        yieldAll(inPath(exe))
         // swiftly installs a proxy `swift` in its bin directory.
         System.getenv("SWIFTLY_BIN_DIR")?.let { yield(Path.of(it, exe)) }
         yield(home.resolve(".swiftly/bin/$exe"))
@@ -44,6 +45,18 @@ object SwiftToolchainDetector {
             yield(Path.of("/opt/swift/usr/bin/swift"))
         }
     }
+
+    /**
+     * [exe] in each `PATH` directory, in order. The `PATH` is the user's shell environment as the
+     * platform loads it, which matters on macOS, where an IDE started from the Dock inherits a
+     * minimal `PATH` from launchd.
+     */
+    private fun inPath(exe: String): List<Path> =
+        EnvironmentUtil.getValue("PATH").orEmpty()
+            .split(File.pathSeparatorChar)
+            .filter { it.isNotBlank() }
+            .mapNotNull { runCatching { Path.of(it.trim(), exe) }.getOrNull() }
+            .filter { Files.isRegularFile(it) }
 
     private fun children(dir: Path): List<Path> =
         if (dir.isDirectory()) runCatching { dir.listDirectoryEntries() }.getOrDefault(emptyList()) else emptyList()

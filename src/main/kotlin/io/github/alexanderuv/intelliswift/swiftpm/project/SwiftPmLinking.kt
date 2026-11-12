@@ -1,6 +1,6 @@
 package io.github.alexanderuv.intelliswift.swiftpm.project
 
-import com.intellij.ide.impl.OpenProjectTask
+import com.intellij.ide.impl.toOpenProjectTask
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.edtWriteAction
 import com.intellij.openapi.externalSystem.autolink.ExternalSystemProjectLinkListener
@@ -92,12 +92,7 @@ class SwiftPmProjectOpenProcessor : ProjectOpenProcessor() {
     override fun canOpenProject(file: VirtualFile): Boolean = provider.canOpenProject(file)
 
     override suspend fun openProjectAsync(virtualFile: VirtualFile, projectOpenOptions: ProjectOpenOptions): Project? =
-        provider.openProject(
-            virtualFile,
-            OpenProjectTask.build()
-                .withProjectToClose(projectOpenOptions.projectToClose)
-                .withForceOpenInNewFrame(projectOpenOptions.forceOpenInNewFrame),
-        )
+        provider.openProject(virtualFile, projectOpenOptions.toOpenProjectTask())
 
     override fun canImportProjectAfterwards(): Boolean = true
 
@@ -119,8 +114,6 @@ class SwiftPmUnlinkedProjectAware : ExternalSystemUnlinkedProjectAware {
 
     override fun isLinkedProject(project: Project, externalProjectPath: String): Boolean =
         SwiftPmSettings.getInstance(project).getLinkedProjectSettings(externalProjectPath) != null
-
-    override fun getLinkedProjectsPaths(project: Project): Set<String> = SwiftPmProjectModel.linkedPackagePaths(project).toSet()
 
     override fun subscribe(project: Project, listener: ExternalSystemProjectLinkListener, parentDisposable: Disposable) {
         SwiftPmSettings.getInstance(project).subscribe(object : ExternalSystemSettingsListener<SwiftPmProjectSettings> {

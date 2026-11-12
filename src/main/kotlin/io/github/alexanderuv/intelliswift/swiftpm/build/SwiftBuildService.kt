@@ -260,6 +260,9 @@ private class SwiftBuildRun(
         } finally {
             // The reader parses complete lines only, and closing it does not complete the last one.
             if (!atLineStart.get()) reader.append('\n')
+            // Waits until every line is parsed, so all messages precede the finish event. In 2026.2
+            // `close()` does not wait; 2026.3 deprecates this in favour of a blocking `close()`.
+            @Suppress("DEPRECATION")
             reader.closeAndGetFuture().join()
         }
     }
