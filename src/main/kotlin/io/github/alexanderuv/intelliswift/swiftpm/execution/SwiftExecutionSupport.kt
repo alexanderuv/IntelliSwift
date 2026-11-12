@@ -12,6 +12,7 @@ import com.intellij.openapi.util.ThrowableComputable
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.externalSystem.model.ExternalSystemException
 import io.github.alexanderuv.intelliswift.swiftpm.model.SwiftPackage
+import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmPathMapping
 import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmToolchains
 import io.github.alexanderuv.intelliswift.toolchain.SwiftToolchain
 import io.github.alexanderuv.intelliswift.toolchain.SwiftVersion
@@ -62,6 +63,16 @@ object SwiftExecutionSupport {
         return path
     }
 
+    /**
+     * Maps the paths `swift run` and `swift test` print for the package in [packageDirectory] to
+     * the paths the IDE knows the files by. SwiftPM and the test frameworks print physical paths,
+     * with symbolic links resolved; see [SwiftPmPathMapping]. Paths that are not valid are kept.
+     */
+    fun printedPathMapper(packageDirectory: String?): (String) -> String {
+        val mapping = packageDirectory?.let { runCatching { SwiftPmPathMapping(Path.of(it)) }.getOrNull() } ?: return { it }
+        return { path -> runCatching { mapping.map(Path.of(path)).toString() }.getOrDefault(path) }
+    }
+
     /** Sets the environment of [command]: [envs] on top of the IDE's environment if [passParentEnvs]. */
     fun applyEnvironment(command: GeneralCommandLine, envs: Map<String, String>, passParentEnvs: Boolean): GeneralCommandLine =
         command.withEnvironment(envs).withParentEnvironmentType(
@@ -73,10 +84,14 @@ object SwiftExecutionSupport {
  * Turns `path/File.swift:line[:column]` in console output (compiler diagnostics, test failures)
  * into links to the source.
  */
-class SwiftFileLocationFilter(private val project: Project) : Filter {
+class SwiftFileLocationFilter(
+    private val project: Project,
+    /** Maps a printed path to the one the IDE knows the file by; see [SwiftExecutionSupport.printedPathMapper]. */
+    private val mapPath: (String) -> String = { it },
+) : Filter {
     override fun applyFilter(line: String, entireLength: Int): Filter.Result? {
         val items = LOCATION.findAll(line).mapNotNull { m ->
-            val file = LocalFileSystem.getInstance().findFileByPath(m.groups[1]!!.value) ?: return@mapNotNull null
+            val file = LocalFileSystem.getInstance().findFileByPath(mapPath(m.groups[1]!!.value)) ?: return@mapNotNull null
             val lineNumber = m.groups[2]!!.value.toInt() - 1
             val column = (m.groups[3]?.value?.toIntOrNull() ?: 1) - 1
             val start = entireLength - line.length + m.range.first

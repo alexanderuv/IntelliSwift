@@ -117,6 +117,18 @@ class XCTestOutputParserTest {
         """.trimIndent(), events)
     }
 
+    @Test fun `failure paths are mapped to the project's`() {
+        val events = ArrayList<SwiftTestEvent>()
+        val parser = XCTestOutputParser(SwiftTestTree { events += it }, { "M" }) { it.replace("/private/src/", "/src/") }
+        listOf(
+            "Test Case 'C.testA' started at 2026-11-11 20:46:31.432",
+            "/private/src/Tests/M/C.swift:5: error: C.testA : XCTAssertTrue failed",
+            "Test Case 'C.testA' failed (0.002 seconds)",
+        ).forEach { parser.line(it) }
+        val failure = events.filterIsInstance<SwiftTestEvent.TestFailed>().single()
+        assertEquals("/src/Tests/M/C.swift:5: XCTAssertTrue failed", failure.details)
+    }
+
     @Test fun `a test the process exited during fails with the failures it recorded`() {
         val events = parse("""
             Test Case '-[M.C testCrash]' started.

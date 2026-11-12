@@ -21,7 +21,11 @@ import kotlin.math.roundToLong
  * location). Suites become suite nodes, parameterized functions too (with a child per case), other
  * functions test nodes, all under the node of their test target.
  */
-class SwiftTestingEventParser(private val tree: SwiftTestTree) {
+class SwiftTestingEventParser(
+    private val tree: SwiftTestTree,
+    /** Maps the physical source paths of the stream to the project's; see [SwiftTestEventsConverter]. */
+    private val mapPath: (String) -> String = { it },
+) {
 
     private class Record(
         val id: String,
@@ -79,7 +83,7 @@ class SwiftTestingEventParser(private val tree: SwiftTestTree) {
                 runs++
                 if (runs > 1) {
                     prefix = "swift-testing$runs:"
-                    starts.clear(); issues.clear(); openCases.clear(); caseNumbers.clear()
+                    starts.clear(); issues.clear(); openCases.clear(); caseNumbers.clear(); failedWithSuite.clear()
                 }
             }
             "testStarted" -> if (testId != null) {
@@ -235,6 +239,8 @@ class SwiftTestingEventParser(private val tree: SwiftTestTree) {
             "  ".repeat(m.num("_indentation")?.toInt() ?: 0) + text
         }
         val known = issue?.bool("isKnown") == true
+        // Already reported, with the issue of the suite whose traits failed.
+        if (testId != null && nodeId(testId) in failedWithSuite) return
         if (testId != null && !known && !tree.wasStarted(nodeId(testId))) {
             // A test whose arguments or traits fail to evaluate (`@Test(arguments: try …)`,
             // `.enabled(if: try …)`) never starts or ends: the issue is all the stream says of it.
@@ -257,17 +263,42 @@ class SwiftTestingEventParser(private val tree: SwiftTestTree) {
         issues.getOrPut(node) { ArrayList() } += SwiftTestTree.Issue(summary, location, details)
     }
 
-    /** Reports [testId], which never started, as failed with [issue]. */
+    /**
+     * Reports [testId], which never started, as failed with [issue]. A suite's condition traits
+     * apply to its tests too, so none of them starts either: Swift Testing reports the suite's
+     * issue, then the same issue for each of its tests. They are all failed here, before the suite
+     * node is finished (no node can start under a finished one), and their own copies of the issue
+     * are dropped when they arrive.
+     */
     private fun failUnstarted(testId: String, issue: SwiftTestTree.Issue) {
         val node = start(testId)
-        if (isSuite(testId) || isParameterized(testId)) {
-            issues[node] = mutableListOf(issue)
-            reportIssuesOfSuite(testId, node)
-            tree.finishSuite(node)
-        } else {
-            tree.finishTest(node, null, SwiftTestTree.Failure.of(listOf(issue)))
+        when {
+            isSuite(testId) -> {
+                issues[node] = mutableListOf(issue)
+                reportIssuesOfSuite(testId, node)
+                for (record in records.values) {
+                    if (record.isSuite || !isInside(record.id, testId) || tree.wasStarted(nodeId(record.id))) continue
+                    failUnstarted(record.id, issue)
+                    failedWithSuite += nodeId(record.id)
+                }
+                val nested = records.values.filter { it.isSuite && isInside(it.id, testId) }.map { it.id }
+                for (suite in nested.sortedByDescending { id -> id.count { it == '/' } }) {
+                    failedWithSuite += nodeId(suite)
+                    tree.finishSuite(nodeId(suite))
+                }
+                tree.finishSuite(node)
+            }
+            isParameterized(testId) -> {
+                issues[node] = mutableListOf(issue)
+                reportIssuesOfSuite(testId, node)
+                tree.finishSuite(node)
+            }
+            else -> tree.finishTest(node, null, SwiftTestTree.Failure.of(listOf(issue)))
         }
     }
+
+    /** Nodes of tests and nested suites failed with their suite by [failUnstarted]. */
+    private val failedWithSuite = HashSet<String>()
 
     /** The node an issue of [testId] belongs to: the running case for a parameterized function, else the test or suite. */
     private fun targetNode(testId: String, p: JsonObject): String? {
@@ -282,7 +313,8 @@ class SwiftTestingEventParser(private val tree: SwiftTestTree) {
     }
 
     private fun location(o: JsonObject): String? {
-        val file = o.str("_filePath") ?: o.str("filePath") ?: o.str("fileID") ?: return null
+        // `fileID` (`Module/File.swift`) is no path, so it is kept as it is.
+        val file = (o.str("_filePath") ?: o.str("filePath"))?.let(mapPath) ?: o.str("fileID") ?: return null
         val line = o.num("line")?.toInt() ?: return file
         val column = o.num("column")?.toInt()
         return if (column != null) "$file:$line:$column" else "$file:$line"

@@ -98,7 +98,7 @@ internal class SwiftPmPathMapping(linkedRoot: Path) {
         return SwiftPackageGraph(packages.getValue(graph.root.identity), map(graph.resolved), packages)
     }
 
-    private fun map(pkg: SwiftPackage): SwiftPackage =
+    fun map(pkg: SwiftPackage): SwiftPackage =
         pkg.copy(path = map(pkg.path), targets = pkg.targets.map { it.copy(path = map(it.path)) })
 
     private fun map(node: SwiftResolvedPackage): SwiftResolvedPackage =

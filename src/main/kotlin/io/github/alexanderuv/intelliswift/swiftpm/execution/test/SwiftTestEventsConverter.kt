@@ -27,13 +27,15 @@ class SwiftTestEventsConverter(
     /** The event stream file, or null if the toolchain cannot write one. Its directory is deleted at the end. */
     private val eventStream: Path?,
     xcTestModuleOf: (className: String) -> String?,
+    /** Maps the source paths the frameworks print (physical ones) to the project's. */
+    mapPath: (String) -> String = { it },
 ) : OutputToGeneralTestEventsConverter(testFrameworkName, consoleProperties) {
 
     private val lock = Any()
     private val pendingEvents = ArrayList<SwiftTestEvent>()
     private val tree = SwiftTestTree { pendingEvents += it }
-    private val xcTest = XCTestOutputParser(tree, xcTestModuleOf)
-    private val swiftTesting = SwiftTestingEventParser(tree)
+    private val xcTest = XCTestOutputParser(tree, xcTestModuleOf, mapPath)
+    private val swiftTesting = SwiftTestingEventParser(tree, mapPath)
     private val tailer = eventStream?.let { file -> EventStreamTailer(file, { line -> process(line, EVENT_STREAM) }) }
     private var exitCode: Int? = null
 

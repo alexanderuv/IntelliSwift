@@ -20,6 +20,7 @@ import io.github.alexanderuv.intelliswift.swiftpm.model.SwiftPackage
 import io.github.alexanderuv.intelliswift.swiftpm.model.SwiftPackageJson
 import io.github.alexanderuv.intelliswift.swiftpm.model.SwiftProductKind
 import io.github.alexanderuv.intelliswift.swiftpm.model.SwiftTargetKind
+import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmPathMapping
 import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmProjectModel
 import io.github.alexanderuv.intelliswift.toolchain.SwiftToolchainSettings
 import java.nio.file.Files
@@ -133,7 +134,8 @@ class SwiftPackageDescriptions(private val project: Project) : Disposable {
         val toolchain = SwiftToolchainSettings.toolchain()?.takeIf { it.isValid }
             ?: throw CannotDescribeException("No usable Swift toolchain. Configure it in Settings | Languages & Frameworks | Swift.")
         val describe = SwiftCommandRunner.runChecked(SwiftPackageCommands(toolchain, packageDir).describe(), cancelled)
-        val pkg = SwiftPackageJson.parsePackage(packageDir.fileName.toString().lowercase(), describe, null)
+        // SwiftPM prints physical paths; the editor's files keep the symbolic links they were opened through.
+        val pkg = SwiftPmPathMapping(packageDir).map(SwiftPackageJson.parsePackage(packageDir.fileName.toString().lowercase(), describe, null))
         cache[packageDir] = Entry(stamp, pkg)
         return pkg
     }

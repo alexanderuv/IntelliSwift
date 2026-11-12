@@ -130,7 +130,7 @@ class SwiftRunConfiguration(project: Project, factory: ConfigurationFactory, nam
 /** Runs `swift run`, which builds the product first, in a console that can stop it. */
 class SwiftRunState(environment: ExecutionEnvironment, private val configuration: SwiftRunConfiguration) : CommandLineState(environment) {
     init {
-        addConsoleFilters(SwiftFileLocationFilter(environment.project))
+        addConsoleFilters(SwiftFileLocationFilter(environment.project, SwiftExecutionSupport.printedPathMapper(configuration.packageDirectory)))
     }
 
     override fun startProcess(): ProcessHandler {

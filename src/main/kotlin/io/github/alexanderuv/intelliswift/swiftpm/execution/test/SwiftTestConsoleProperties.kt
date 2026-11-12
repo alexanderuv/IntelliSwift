@@ -19,6 +19,7 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.pom.Navigatable
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.GlobalSearchScopesCore
+import io.github.alexanderuv.intelliswift.swiftpm.execution.SwiftExecutionSupport
 import io.github.alexanderuv.intelliswift.swiftpm.execution.SwiftFileLocationFilter
 import io.github.alexanderuv.intelliswift.swiftpm.execution.SwiftTestPath
 import java.nio.file.Path
@@ -34,14 +35,17 @@ class SwiftTestConsoleProperties(
     private val eventStream: Path?,
 ) : SMTRunnerConsoleProperties(configuration, FRAMEWORK_NAME, executor), SMCustomMessagesParsing {
 
+    /** The printed paths of this package's run mapped to the project's; see [SwiftExecutionSupport.printedPathMapper]. */
+    private val mapPath = SwiftExecutionSupport.printedPathMapper(configuration.packageDirectory)
+
     init {
         isIdBasedTestTree = true
         isPrintTestingStartedTime = false
-        addStackTraceFilter(SwiftFileLocationFilter(configuration.project))
+        addStackTraceFilter(SwiftFileLocationFilter(configuration.project, mapPath))
     }
 
     override fun createTestEventsConverter(testFrameworkName: String, consoleProperties: TestConsoleProperties): OutputToGeneralTestEventsConverter =
-        SwiftTestEventsConverter(testFrameworkName, consoleProperties, eventStream, ::xcTestModuleOf)
+        SwiftTestEventsConverter(testFrameworkName, consoleProperties, eventStream, ::xcTestModuleOf, mapPath)
 
     override fun getTestLocator(): SMTestLocator = SwiftTestLocator
 

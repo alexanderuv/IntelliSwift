@@ -124,6 +124,56 @@ class SwiftTestingEventParserTest {
         """.trimIndent(), parse(stream))
     }
 
+    @Test fun `the tests of a suite whose traits fail are failed with it`() {
+        // `@Suite(.enabled(if: try check()))` with a throwing check: the issue for the suite, then
+        // the same for each of its tests and suites, and nothing starts.
+        val issue = ""","issue":{"isKnown":false}"""
+        val stream = listOf(
+            suite("M.S"), test("M.S/a()/T.swift:3:2"), suite("M.S/Inner"), test("M.S/Inner/b()/T.swift:4:2"),
+            event("runStarted", null),
+            event("issueRecorded", "M.S", extra = issue),
+            event("issueRecorded", "M.S/a()/T.swift:3:2", extra = issue),
+            event("issueRecorded", "M.S/Inner", extra = issue),
+            event("issueRecorded", "M.S/Inner/b()/T.swift:4:2", extra = issue),
+            event("runEnded", null),
+        ).joinToString("\n")
+        assertEquals("""
+            suite+ target:M <- 0 'M' swift-target://M
+            suite+ swift-testing:M.S <- target:M 'S' swift-testing://M.S
+            test+ swift-testing:M.S#issues <- swift-testing:M.S 'Recorded issue' swift-testing://M.S
+            failed swift-testing:M.S#issues 'issueRecorded text' [issueRecorded text]
+            test- swift-testing:M.S#issues 0ms
+            test+ swift-testing:M.S/a()/T.swift:3:2 <- swift-testing:M.S 'a()' swift-testing://M.S/a() @/src/T.swift:3:2
+            failed swift-testing:M.S/a()/T.swift:3:2 'issueRecorded text' [issueRecorded text]
+            test- swift-testing:M.S/a()/T.swift:3:2 -
+            suite+ swift-testing:M.S/Inner <- swift-testing:M.S 'Inner' swift-testing://M.S/Inner
+            test+ swift-testing:M.S/Inner/b()/T.swift:4:2 <- swift-testing:M.S/Inner 'b()' swift-testing://M.S/Inner/b() @/src/T.swift:3:2
+            failed swift-testing:M.S/Inner/b()/T.swift:4:2 'issueRecorded text' [issueRecorded text]
+            test- swift-testing:M.S/Inner/b()/T.swift:4:2 -
+            suite- swift-testing:M.S/Inner
+            suite- swift-testing:M.S
+            suite- target:M
+        """.trimIndent(), parse(stream))
+    }
+
+    @Test fun `source paths are mapped to the project's`() {
+        val events = ArrayList<SwiftTestEvent>()
+        val tree = SwiftTestTree { events += it }
+        val parser = SwiftTestingEventParser(tree) { it.replace("/private/src/", "/src/") }
+        listOf(
+            """{"kind":"test","payload":{"id":"M.t()/T.swift:3:2","kind":"function","name":"t()","sourceLocation":{"_filePath":"/private/src/T.swift","line":3,"column":2}}}""",
+            event("testStarted", "M.t()/T.swift:3:2"),
+            event("issueRecorded", "M.t()/T.swift:3:2", extra = ""","issue":{"isKnown":false,"sourceLocation":{"_filePath":"/private/src/T.swift","line":5,"column":7}}"""),
+            event("testEnded", "M.t()/T.swift:3:2"),
+        ).forEach(parser::line)
+        assertEquals("""
+            suite+ target:M <- 0 'M' swift-target://M
+            test+ swift-testing:M.t()/T.swift:3:2 <- target:M 't()' swift-testing://M.t() @/src/T.swift:3:2
+            failed swift-testing:M.t()/T.swift:3:2 'issueRecorded text' [/src/T.swift:5:7: issueRecorded text]
+            test- swift-testing:M.t()/T.swift:3:2 0ms
+        """.trimIndent(), render(events))
+    }
+
     @Test fun `a second run in the same stream gets new nodes`() {
         val stream = listOf(
             test("M.t()/T.swift:3:2"),

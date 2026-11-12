@@ -20,6 +20,8 @@ import kotlin.math.roundToLong
 class XCTestOutputParser(
     private val tree: SwiftTestTree,
     private val moduleOf: (className: String) -> String? = { null },
+    /** Maps the physical paths of failure locations to the project's; see [SwiftTestEventsConverter]. */
+    private val mapPath: (String) -> String = { it },
 ) {
     private class Running(val nodeId: String, val name: String) {
         val failures = ArrayList<SwiftTestTree.Issue>()
@@ -50,7 +52,7 @@ class XCTestOutputParser(
             val name = testName(m)
             val current = running
             if (current != null && current.name == name.display) {
-                val location = "${m.groups["file"]!!.value}:${m.groups["line"]!!.value}"
+                val location = "${mapPath(m.groups["file"]!!.value)}:${m.groups["line"]!!.value}"
                 val message = m.groups["message"]!!.value.trimEnd().removeSuffix(" -").trimEnd()
                 if (m.groups["error"] != null) {
                     current.failures += SwiftTestTree.Issue(message, location)
