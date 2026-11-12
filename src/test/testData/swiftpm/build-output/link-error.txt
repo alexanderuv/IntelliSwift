@@ -1,0 +1,14 @@
+Building for debugging...
+[Planning deferred tasks]
+[19 / 24]
+[22 / 29]
+[25 / 29] linkerror-product
+Undefined symbols for architecture arm64:
+  "_intelliswift_missing_symbol", referenced from:
+      _main in main.o
+ld: symbol(s) not found for architecture arm64
+/FIXTURE/build-output/packages/LinkError/Package.swift: linkerror-product: clang: error: linker command failed with exit code 1 (use -v to see invocation)
+[27 / 29] linkerror-product
+error: Ld /FIXTURE/build-output/packages/LinkError/.build/out/Products/Debug/linkerror normal failed with a nonzero exit code. Command line:     cd /FIXTURE/build-output/packages/LinkError
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -Xlinker -reproducible -target arm64-apple-macos12.0 -emit-executable -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX27.2.sdk -Xlinker -no_warn_duplicate_libraries -L/FIXTURE/build-output/packages/LinkError/.build/out/Intermediates.noindex/EagerLinkingTBDs/Debug -L/FIXTURE/build-output/packages/LinkError/.build/out/Products/Debug -L/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -F/FIXTURE/build-output/packages/LinkError/.build/out/Intermediates.noindex/EagerLinkingTBDs/Debug -F/FIXTURE/build-output/packages/LinkError/.build/out/Products/Debug -Fsystem /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks @/FIXTURE/build-output/packages/LinkError/.build/out/Intermediates.noindex/LinkError.build/Debug/linkerror-p.build/Objects-normal/arm64/linkerror.LinkFileList -Xlinker -rpath -Xlinker /usr/lib/swift -Xlinker -rpath -Xlinker /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v27.2.47.0.Niwg2O/Metal.xctoolchain/usr/lib/swift-6.2/macosx -Xlinker -rpath -Xlinker /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-6.2/macosx -Xlinker -dead_strip -Xlinker -object_path_lto -Xlinker /FIXTURE/build-output/packages/LinkError/.build/out/Intermediates.noindex/LinkError.build/Debug/linkerror-p.build/Objects-normal/arm64/linkerror_lto.o -Xclang-linker -rdynamic -Xlinker -no_deduplicate -Xlinker -dependency_info -Xlinker /FIXTURE/build-output/packages/LinkError/.build/out/Intermediates.noindex/LinkError.build/Debug/linkerror-p.build/Objects-normal/arm64/linkerror_dependency_info.dat -link-objc-runtime -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /FIXTURE/build-output/packages/LinkError/.build/out/Intermediates.noindex/LinkError.build/Debug/linkerror-p.build/Objects-normal/arm64/linkerror.swiftmodule -Xlinker -no_adhoc_codesign -o /FIXTURE/build-output/packages/LinkError/.build/out/Products/Debug/linkerror -no-stdlib-rpath
+error: Build failed

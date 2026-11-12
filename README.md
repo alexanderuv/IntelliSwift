@@ -18,6 +18,8 @@ SwiftPM packages are integrated the way Gradle projects are ([ADR 0002](docs/adr
   sources. The project reloads when `Package.swift` or `Package.resolved` changes.
 - **SwiftPM tool window.** Build, test, clean, resolve, update and run tasks per package, and a
   build task per target.
+- **Build.** *Build Project*, *Build Module*, *Rebuild* and *Compile* run `swift build` (debug or
+  release), with navigable compiler, linker and manifest errors in the Build tool window.
 
 The toolchain is detected from `PATH`, `xcrun`, swiftly and the standard install locations, and
 can be set in *Settings | Languages & Frameworks | Swift*. Debugging is not supported yet.
@@ -65,7 +67,7 @@ The plugin ZIP is written to `build/distributions/`. Install it with
 
 runs the lexer tests, the parser PSI snapshot tests (`src/test/testData/parser`), the editor
 feature tests and the SwiftPM tests. A missing snapshot is generated on the first run; review it
-before committing. The SwiftPM tests import the fixture packages in `src/test/testData/swiftpm`
+before committing. The SwiftPM tests import and build the fixture packages in `src/test/testData/swiftpm`
 with the local toolchain.
 
 The swift-syntax conformance test builds the oracle, fetches the corpus listed in

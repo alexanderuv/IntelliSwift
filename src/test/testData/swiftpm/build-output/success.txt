@@ -1,0 +1,31 @@
+Building for debugging...
+[Pre-planning 1 / 212]
+[Planning deferred tasks]
+[43 / 85]
+[49 / 90]
+[60 / 93] Greeter
+[73 / 96] greet-product
+[77 / 96] Greeter
+[84 / 97] greet-product
+[86 / 97] GreeterTests-product
+[95 / 166]
+[101 / 166]
+[106 / 166]
+[108 / 166]
+[114 / 166]
+[117 / 166]
+[118 / 166]
+[121 / 166]
+[125 / 166]
+[128 / 166]
+[130 / 166]
+[131 / 166]
+[142 / 166]
+[145 / 166]
+[147 / 166]
+[150 / 166]
+[151 / 166]
+[155 / 166] GreeterTests-product
+[160 / 166] GreeterTests-product
+[162 / 166] GreeterTests-product
+Build complete! (8.33 sec)

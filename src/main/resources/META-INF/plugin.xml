@@ -7,13 +7,15 @@
         <p>A native lexer and parser, validated against swift-syntax, give Swift 6 files a full PSI tree:
         syntax highlighting, structure view, folding, brace matching and commenting.</p>
         <p>SwiftPM packages are imported like Gradle projects: modules per package and target,
-        dependencies, auto-reload and a SwiftPM tool window.</p>
+        dependencies, auto-reload, a SwiftPM tool window and Build Project with navigable diagnostics.</p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
     <!-- SwiftPM integration (ADR 0002) is built on the External System. -->
     <depends>com.intellij.modules.externalSystem</depends>
     <dependencies>
+        <!-- ExternalSystemOutputParserProvider, ExternalSystemModulePropertyManager (build integration). -->
+        <module name="intellij.platform.externalSystem"/>
         <!-- The External System's settings page, tool window, open provider, trust dialog and
              ExternalSystemUtil (project import). -->
         <module name="intellij.platform.externalSystem.impl"/>
@@ -47,6 +49,18 @@
         <!-- Toolchain -->
         <applicationConfigurable parentId="language" id="intelliswift.toolchain" displayName="Swift"
                                  instance="io.github.alexanderuv.intelliswift.toolchain.SwiftToolchainConfigurable"/>
+
+        <!-- region SwiftPM build: Build Project/Module/Rebuild/Compile through `swift build`, and
+             navigable `swift build` diagnostics in the Build tool window. -->
+        <projectTaskRunner id="intelliswift.swiftpm.build" order="first"
+                           implementation="io.github.alexanderuv.intelliswift.swiftpm.build.SwiftProjectTaskRunner"/>
+        <externalSystemOutputParserProvider
+                implementation="io.github.alexanderuv.intelliswift.swiftpm.build.SwiftBuildOutputParserProvider"/>
+        <!-- The parent page is registered by the SwiftPM project import. -->
+        <projectConfigurable parentId="reference.settingsdialog.project.swiftpm" id="intelliswift.swiftpm.build"
+                             displayName="Build"
+                             instance="io.github.alexanderuv.intelliswift.swiftpm.build.SwiftBuildConfigurable"/>
+        <!-- endregion -->
     </extensions>
 
     <!-- region SwiftPM project import (External System, ADR 0002) -->

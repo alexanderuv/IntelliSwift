@@ -29,6 +29,8 @@ import kotlinx.coroutines.runBlocking
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.testFramework.HeavyPlatformTestCase
+import io.github.alexanderuv.intelliswift.swiftpm.build.SwiftBuildScope
+import io.github.alexanderuv.intelliswift.swiftpm.build.SwiftPackageLocator
 import io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmExecutionSettings
 import io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmProjectSettings
 import io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmSettings
@@ -206,6 +208,22 @@ class SwiftPmImportTest : HeavyPlatformTestCase() {
         )
         assertEquals(greeterPath, manager.getAffectedExternalProjectPath(SwiftPmPaths.systemIndependent(utils.resolve("Package.swift")), project))
         assertNull(manager.getAffectedExternalProjectPath(SwiftPmPaths.systemIndependent(utils.resolve("Sources/Utils/Strings.swift")), project))
+    }
+
+    /** The build integration reads packages and targets from the imported data. */
+    fun `test builds use the imported packages and targets`() {
+        val fixture = linkAndLoadGreeter("build scopes") ?: return
+        assertEquals(SwiftBuildScope(fixture.greeter, "Greeter"), SwiftPackageLocator.scopeOf(module("Greeter.Greeter")))
+        assertEquals(SwiftBuildScope(fixture.greeter, "GreeterTests"), SwiftPackageLocator.scopeOf(module("Greeter.GreeterTests")))
+        assertEquals(SwiftBuildScope(fixture.greeter, null), SwiftPackageLocator.scopeOf(module("Greeter")))
+        assertEquals(SwiftBuildScope(fixture.utils, null), SwiftPackageLocator.scopeOf(module("Utils")))
+        // Plugin targets are not in Sources/ or Tests/; only the imported data knows them.
+        assertEquals(SwiftBuildScope(fixture.greeter, "Lint"), SwiftPackageLocator.scopeOf(module("Greeter.Lint")))
+        assertEquals(SwiftBuildScope(fixture.greeter, "Lint"), SwiftPackageLocator.scopeOf(project, file(fixture.greeter.resolve("Plugins/Lint/Lint.swift"))))
+
+        // Utils is a `path:` dependency of Greeter, so building Greeter builds it.
+        assertEquals(fixture.greeter, SwiftPackageLocator.buildingRoot(project, fixture.utils))
+        assertNull(SwiftPackageLocator.buildingRoot(project, fixture.greeter))
     }
 
     fun `test tasks run swift and stream its output`() {

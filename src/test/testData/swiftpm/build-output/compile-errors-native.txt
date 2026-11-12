@@ -1,0 +1,46 @@
+Building for debugging...
+[0/2] Write sources
+[1/2] Write swift-version--58304C5D6DBC2206.txt
+[3/4] Emitting module Broken
+[4/4] Compiling Broken Broken.swift
+/FIXTURE/build-output/packages/Broken/Sources/Broken/Broken.swift:5:13: warning: initialization of immutable value 'unused' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 3 | 
+ 4 |     public func label(prefix: String, suffix: String) -> String {
+ 5 |         let unused = 42
+   |             `- warning: initialization of immutable value 'unused' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+ 6 |         return prefix + String(count) + suffix
+ 7 |     }
+
+/FIXTURE/build-output/packages/Broken/Sources/Broken/Broken.swift:10:28: error: cannot convert value of type 'Int' to specified type 'String'
+ 8 | 
+ 9 |     public func total() -> Int {
+10 |         let text: String = count
+   |                            `- error: cannot convert value of type 'Int' to specified type 'String'
+11 |         return label(prefix: "n")
+12 |     }
+
+/FIXTURE/build-output/packages/Broken/Sources/Broken/Broken.swift:11:33: error: missing argument for parameter 'suffix' in call
+ 2 |     public var count: Int = 0
+ 3 | 
+ 4 |     public func label(prefix: String, suffix: String) -> String {
+   |                 `- note: 'label(prefix:suffix:)' declared here
+ 5 |         let unused = 42
+ 6 |         return prefix + String(count) + suffix
+   :
+ 9 |     public func total() -> Int {
+10 |         let text: String = count
+11 |         return label(prefix: "n")
+   |                                 `- error: missing argument for parameter 'suffix' in call
+12 |     }
+13 | }
+
+/FIXTURE/build-output/packages/Broken/Sources/Broken/Broken.swift:11:16: error: cannot convert return expression of type 'String' to return type 'Int'
+ 9 |     public func total() -> Int {
+10 |         let text: String = count
+11 |         return label(prefix: "n")
+   |                `- error: cannot convert return expression of type 'String' to return type 'Int'
+12 |     }
+13 | }
+
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+warning: '--build-system native' has been deprecated and will be removed in a future release; please report an issue at https://github.com/swiftlang/swift-package-manager/issues if you are unable to adopt the default build system.
