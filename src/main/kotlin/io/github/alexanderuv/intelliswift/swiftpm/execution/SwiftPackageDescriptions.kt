@@ -1,6 +1,10 @@
 package io.github.alexanderuv.intelliswift.swiftpm.execution
 
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
+import com.intellij.ide.trustedProjects.TrustedProjects
+import com.intellij.ide.trustedProjects.TrustedProjectsListener
+import com.intellij.ide.trustedProjects.TrustedProjectsLocator
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
@@ -43,7 +47,8 @@ data class SwiftTargetInfo(
  * For packages the SwiftPM project import has loaded, [targetOf] answers from the imported project
  * data instead. Lookups never wait for SwiftPM: a missing or stale description is loaded in the
  * background (and the editor markers are refreshed when it arrives), and meanwhile the target is
- * inferred from SwiftPM's standard layout (`Sources/<Target>`, `Tests/<Target>`).
+ * inferred from SwiftPM's standard layout (`Sources/<Target>`, `Tests/<Target>`). That layout is
+ * all there is for packages that are not trusted, since describing one runs its manifest.
  */
 @Service(Service.Level.PROJECT)
 class SwiftPackageDescriptions(private val project: Project) : Disposable {
@@ -57,6 +62,16 @@ class SwiftPackageDescriptions(private val project: Project) : Disposable {
 
     @Volatile
     private var disposed = false
+
+    init {
+        // Packages trusted now can be described: look at the open files' targets again. Trust
+        // changes are rare, so any of them refreshes this project's markers.
+        ApplicationManager.getApplication().messageBus.connect(this).subscribe(TrustedProjectsListener.TOPIC, object : TrustedProjectsListener {
+            override fun onProjectTrusted(locatedProject: TrustedProjectsLocator.LocatedProject) {
+                if (!disposed && !project.isDisposed) DaemonCodeAnalyzer.getInstance(project).restart("Swift package trusted")
+            }
+        })
+    }
 
     /**
      * The target containing [file], or null if it is not in a SwiftPM target directory. Sources
@@ -114,20 +129,33 @@ class SwiftPackageDescriptions(private val project: Project) : Disposable {
     fun load(packageDir: Path, cancelled: () -> Boolean = { false }): SwiftPackage {
         val stamp = stamp(packageDir) ?: throw IllegalArgumentException("No ${SwiftPackage.MANIFEST} in $packageDir")
         cache[packageDir]?.takeIf { it.stamp == stamp }?.pkg?.let { return it }
-        val toolchain = SwiftToolchainSettings.toolchain()
-            ?: throw IllegalStateException("No Swift toolchain found. Configure it in Settings | Languages & Frameworks | Swift.")
+        if (!isTrusted(packageDir)) throw CannotDescribeException("The package in $packageDir is not trusted.")
+        val toolchain = SwiftToolchainSettings.toolchain()?.takeIf { it.isValid }
+            ?: throw CannotDescribeException("No usable Swift toolchain. Configure it in Settings | Languages & Frameworks | Swift.")
         val describe = SwiftCommandRunner.runChecked(SwiftPackageCommands(toolchain, packageDir).describe(), cancelled)
         val pkg = SwiftPackageJson.parsePackage(packageDir.fileName.toString().lowercase(), describe, null)
         cache[packageDir] = Entry(stamp, pkg)
         return pkg
     }
 
+    /**
+     * Whether SwiftPM may run for [packageDir]: describing a package compiles and runs its
+     * manifest, so only for packages the user trusts, as for syncs and builds.
+     */
+    private fun isTrusted(packageDir: Path): Boolean = TrustedProjects.isProjectTrusted(packageDir, project)
+
+    /** Why a package cannot be described now, though it may be later: not its manifest's fault, so not remembered. */
+    class CannotDescribeException(message: String) : Exception(message)
+
     private fun scheduleLoad(packageDir: Path) {
-        if (disposed || !loading.add(packageDir)) return
+        // Until a package is trusted, its targets come from the directory layout.
+        if (disposed || !isTrusted(packageDir) || !loading.add(packageDir)) return
         AppExecutorUtil.getAppExecutorService().execute {
             try {
                 load(packageDir) { disposed || project.isDisposed }
                 if (!disposed && !project.isDisposed) DaemonCodeAnalyzer.getInstance(project).restart("SwiftPM package described")
+            } catch (e: CannotDescribeException) {
+                LOG.info("Cannot describe the Swift package in $packageDir: ${e.message}")
             } catch (e: Exception) {
                 if (e is com.intellij.openapi.progress.ProcessCanceledException) return@execute
                 LOG.info("Cannot describe the Swift package in $packageDir: ${e.message}")

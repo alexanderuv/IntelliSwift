@@ -7,10 +7,12 @@ import com.intellij.execution.testframework.sm.runner.states.TestStateInfo
 import com.intellij.icons.AllIcons
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.alexanderuv.intelliswift.swiftpm.execution.run.SwiftRunConfiguration
 import io.github.alexanderuv.intelliswift.swiftpm.execution.test.SwiftTestConfiguration
+import io.github.alexanderuv.intelliswift.swiftpm.execution.test.SwiftTestLocator
 import io.github.alexanderuv.intelliswift.swiftpm.execution.test.SwiftTestScope
 import java.util.Date
 
@@ -99,6 +101,18 @@ class SwiftRunMarkersTest : BasePlatformTestCase() {
     fun `test XCTest classes and their test methods have markers`() {
         val file = open("Tests/PkgTests/GreeterXCTests.swift", xcTests)
         assertEquals(listOf("BaseCase:3", "GreeterXCTests:5", "testGreeting:6", "testFromExtension:14"), markers(file))
+    }
+
+    fun `test an XCTest class is resolved to its module only when one target declares it`() {
+        val utilsTests = "import XCTest\n\nfinal class UtilsTests: XCTestCase {\n    func testExample() {}\n}\n"
+        myFixture.addFileToProject("Tests/ATests/UtilsTests.swift", utilsTests)
+        myFixture.addFileToProject("Tests/ATests/OnlyA.swift", "import XCTest\n\nfinal class OnlyA: XCTestCase {}\n")
+        val scope = GlobalSearchScope.projectScope(project)
+        assertEquals("ATests", SwiftTestLocator.xcTestModuleOf(project, scope, "UtilsTests"))
+        myFixture.addFileToProject("Tests/BTests/UtilsTests.swift", utilsTests)
+        assertNull("declared in ATests and BTests", SwiftTestLocator.xcTestModuleOf(project, scope, "UtilsTests"))
+        assertEquals("ATests", SwiftTestLocator.xcTestModuleOf(project, scope, "OnlyA"))
+        assertNull(SwiftTestLocator.xcTestModuleOf(project, scope, "Missing"))
     }
 
     fun `test Swift Testing suites and functions have markers`() {

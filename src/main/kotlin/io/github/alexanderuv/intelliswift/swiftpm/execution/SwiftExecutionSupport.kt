@@ -10,9 +10,10 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.ThrowableComputable
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.externalSystem.model.ExternalSystemException
 import io.github.alexanderuv.intelliswift.swiftpm.model.SwiftPackage
+import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmToolchains
 import io.github.alexanderuv.intelliswift.toolchain.SwiftToolchain
-import io.github.alexanderuv.intelliswift.toolchain.SwiftToolchainSettings
 import io.github.alexanderuv.intelliswift.toolchain.SwiftVersion
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
@@ -21,19 +22,24 @@ import java.nio.file.Path
 /** Shared parts of the Swift Run and Swift Test configurations. */
 object SwiftExecutionSupport {
 
-    /** A toolchain and its version, which decides some command line flags. */
+    /** A toolchain and the version it runs in the package, which decides some command line flags. */
     class ResolvedToolchain(val toolchain: SwiftToolchain, val version: SwiftVersion?)
 
     /**
-     * The configured or detected toolchain. Detecting it and asking its version start processes,
-     * so on the UI thread this runs under a modal progress.
+     * The configured or detected toolchain for the package in [packageDir], with the same checks as
+     * syncs and builds (see [SwiftPmToolchains.require]). Its version is the one it reports in
+     * [packageDir], where `swift run` and `swift test` run: a proxy such as swiftly picks the
+     * toolchain by the directory. Detecting it and asking its version start processes, so on the
+     * UI thread this runs under a modal progress.
      */
-    fun toolchain(project: Project): ResolvedToolchain {
+    fun toolchain(project: Project, packageDir: Path): ResolvedToolchain {
         val resolve = ThrowableComputable<ResolvedToolchain, ExecutionException> {
-            val toolchain = SwiftToolchainSettings.toolchain()
-                ?: throw ExecutionException("No Swift toolchain found. Configure it in Settings | Languages & Frameworks | Swift.")
-            if (!toolchain.isValid) throw ExecutionException("The Swift toolchain ${toolchain.swift} is not an executable.")
-            ResolvedToolchain(toolchain, toolchain.version)
+            val toolchain = try {
+                SwiftPmToolchains.require(packageDir)
+            } catch (e: ExternalSystemException) {
+                throw ExecutionException(e.message, e)
+            }
+            ResolvedToolchain(toolchain, toolchain.versionIn(packageDir))
         }
         return if (ApplicationManager.getApplication().isDispatchThread) {
             ProgressManager.getInstance().runProcessWithProgressSynchronously(resolve, "Detecting Swift toolchain", true, project)

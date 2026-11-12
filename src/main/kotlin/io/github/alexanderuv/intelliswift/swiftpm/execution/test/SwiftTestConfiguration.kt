@@ -192,7 +192,7 @@ class SwiftTestRunState(
         } catch (e: RuntimeConfigurationException) {
             throw ExecutionException(e.localizedMessage)
         }
-        val toolchain = SwiftExecutionSupport.toolchain(environment.project)
+        val toolchain = SwiftExecutionSupport.toolchain(environment.project, packageDir)
         val directory = Files.createTempDirectory("intelliswift-test")
         val stream = directory.resolve("events.jsonl").also { eventStream = it }
         val command = SwiftPackageCommands(toolchain.toolchain, packageDir).test(

@@ -43,7 +43,7 @@ class XCTestOutputParser(
         }
         SUITE_FINISHED.matchEntire(line)?.let { m ->
             // The class suite ends; other suites (the bundle, "All tests") have no node.
-            if (running == null && openClassName == m.groups["suite"]!!.value) closeOpenClass()
+            if (running == null && openClassPath?.className == m.groups["suite"]!!.value) closeOpenClass()
             return false
         }
         ISSUE.matchEntire(line)?.let { m ->
@@ -98,29 +98,39 @@ class XCTestOutputParser(
         abandonRunning("The test did not finish")
         val classPath = SwiftTestPath.XCTest(name.module, name.className)
         val testPath = classPath.copy(method = name.method)
-        val classNode = nodeId(classPath)
-        if (!tree.isOpen(classNode)) {
+        if (openClassPath != classPath) {
             closeOpenClass()
             val parent = name.module?.let(tree::module) ?: SwiftTestEvent.ROOT_ID
-            tree.startSuite(classNode, parent, name.className, classPath.locationUrl)
-            openClass = classNode
-            openClassName = name.className
+            val node = newClassNode(classPath)
+            tree.startSuite(node, parent, name.className, classPath.locationUrl)
+            openClass = node
+            openClassPath = classPath
         }
-        val nodeId = nodeId(testPath)
+        val classNode = openClass!!
+        val nodeId = "$classNode/${name.method}"
         tree.startTest(nodeId, classNode, name.method, testPath.locationUrl)
         running = Running(nodeId, name.display)
     }
 
-    private fun nodeId(path: SwiftTestPath.XCTest): String = "xctest:" + path.locationUrl.substringAfter("://")
+    /**
+     * A node ID for a class that starts running. XCTest runs each class's tests together, so a class
+     * that runs again is another one: corelibs XCTest names classes without their module, and test
+     * targets may declare classes of the same name. Each run of a class gets its own node.
+     */
+    private fun newClassNode(path: SwiftTestPath.XCTest): String {
+        val base = "xctest:" + path.locationUrl.substringAfter("://")
+        if (!tree.wasStarted(base)) return base
+        return generateSequence(2) { it + 1 }.map { "$base#$it" }.first { !tree.wasStarted(it) }
+    }
 
     /** The class whose tests are running; closed when its suite ends, another class starts, or the run ends. */
     private var openClass: String? = null
-    private var openClassName: String? = null
+    private var openClassPath: SwiftTestPath.XCTest? = null
 
     private fun closeOpenClass() {
         openClass?.let(tree::finishSuite)
         openClass = null
-        openClassName = null
+        openClassPath = null
     }
 
     private fun finish(name: Name, verb: String, seconds: String) {

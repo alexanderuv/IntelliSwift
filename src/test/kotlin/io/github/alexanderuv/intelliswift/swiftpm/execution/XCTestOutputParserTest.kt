@@ -87,6 +87,36 @@ class XCTestOutputParserTest {
         """.trimIndent(), events)
     }
 
+    @Test fun `Linux classes of the same name in two targets get a node each`() {
+        // corelibs XCTest names no module, and both ATests and BTests declare UtilsTests.
+        val events = parse("""
+            Test Suite 'UtilsTests' started at 2026-11-11 20:46:31.432
+            Test Case 'UtilsTests.testExample' started at 2026-11-11 20:46:31.432
+            Test Case 'UtilsTests.testExample' passed (0.001 seconds)
+            Test Suite 'UtilsTests' passed at 2026-11-11 20:46:31.433
+            Test Suite 'UtilsTests' started at 2026-11-11 20:46:31.433
+            Test Case 'UtilsTests.testExample' started at 2026-11-11 20:46:31.433
+            /src/Tests/BTests/UtilsTests.swift:5: error: UtilsTests.testExample : XCTAssertTrue failed
+            Test Case 'UtilsTests.testExample' failed (0.002 seconds)
+            Test Suite 'UtilsTests' failed at 2026-11-11 20:46:31.435
+        """.trimIndent())
+        assertEquals("""
+            run-out 'Test Suite 'UtilsTests' started at 2026-11-11 20:46:31.432'
+            suite+ xctest:/UtilsTests <- 0 'UtilsTests' swift-xctest:///UtilsTests
+            test+ xctest:/UtilsTests/testExample <- xctest:/UtilsTests 'testExample' swift-xctest:///UtilsTests/testExample
+            test- xctest:/UtilsTests/testExample 1ms
+            suite- xctest:/UtilsTests
+            run-out 'Test Suite 'UtilsTests' passed at 2026-11-11 20:46:31.433'
+            run-out 'Test Suite 'UtilsTests' started at 2026-11-11 20:46:31.433'
+            suite+ xctest:/UtilsTests#2 <- 0 'UtilsTests' swift-xctest:///UtilsTests
+            test+ xctest:/UtilsTests#2/testExample <- xctest:/UtilsTests#2 'testExample' swift-xctest:///UtilsTests/testExample
+            failed xctest:/UtilsTests#2/testExample 'XCTAssertTrue failed' [/src/Tests/BTests/UtilsTests.swift:5: XCTAssertTrue failed]
+            test- xctest:/UtilsTests#2/testExample 2ms
+            suite- xctest:/UtilsTests#2
+            run-out 'Test Suite 'UtilsTests' failed at 2026-11-11 20:46:31.435'
+        """.trimIndent(), events)
+    }
+
     @Test fun `a test the process exited during fails with the failures it recorded`() {
         val events = parse("""
             Test Case '-[M.C testCrash]' started.

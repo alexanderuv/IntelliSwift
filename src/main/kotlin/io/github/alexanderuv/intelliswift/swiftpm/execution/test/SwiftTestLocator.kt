@@ -58,6 +58,19 @@ object SwiftTestLocator : SMTestLocator {
         return result
     }
 
+    /**
+     * The module of the XCTest class [className] in [scope], for output that names only the class
+     * (corelibs XCTest): the test target whose sources declare it. `null` when none does, or when
+     * classes of that name are declared in several targets, since the output cannot tell which ran.
+     */
+    fun xcTestModuleOf(project: Project, scope: GlobalSearchScope, className: String): String? {
+        val descriptions = SwiftPackageDescriptions.getInstance(project)
+        val modules = findXCTestClasses(project, scope, className).map { declaration ->
+            declaration.containingFile.virtualFile?.let { descriptions.targetOf(it)?.moduleName }
+        }.distinct()
+        return modules.singleOrNull()
+    }
+
     private fun findXCTest(project: Project, scope: GlobalSearchScope, path: SwiftTestPath.XCTest): List<PsiElement> {
         if (path.method == null) return findXCTestClasses(project, scope, path.className, path.module)
         val result = ArrayList<PsiElement>()

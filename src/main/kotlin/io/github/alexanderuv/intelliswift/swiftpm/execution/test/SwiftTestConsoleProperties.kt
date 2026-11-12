@@ -20,7 +20,6 @@ import com.intellij.pom.Navigatable
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.GlobalSearchScopesCore
 import io.github.alexanderuv.intelliswift.swiftpm.execution.SwiftFileLocationFilter
-import io.github.alexanderuv.intelliswift.swiftpm.execution.SwiftPackageDescriptions
 import io.github.alexanderuv.intelliswift.swiftpm.execution.SwiftTestPath
 import java.nio.file.Path
 
@@ -60,15 +59,14 @@ class SwiftTestConsoleProperties(
 
     /**
      * The module of an XCTest class, for corelibs XCTest (Linux, Windows), whose output names
-     * only the class: the module of the target whose sources declare it.
+     * only the class: see [SwiftTestLocator.xcTestModuleOf].
      */
     private fun xcTestModuleOf(className: String): String? {
         val directory = configuration.packageDirectory?.let { LocalFileSystem.getInstance().findFileByPath(it) } ?: return null
         return ReadAction.nonBlocking<String?> {
             if (DumbService.isDumb(project)) return@nonBlocking null
             val scope: GlobalSearchScope = GlobalSearchScopesCore.directoryScope(project, directory, true)
-            val declaration = SwiftTestLocator.findXCTestClasses(project, scope, className).firstOrNull() ?: return@nonBlocking null
-            declaration.containingFile.virtualFile?.let { SwiftPackageDescriptions.getInstance(project).targetOf(it)?.moduleName }
+            SwiftTestLocator.xcTestModuleOf(project, scope, className)
         }.expireWith(project).executeSynchronously()
     }
 

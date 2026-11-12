@@ -140,13 +140,19 @@ class SwiftRunState(environment: ExecutionEnvironment, private val configuration
         } catch (e: RuntimeConfigurationException) {
             throw ExecutionException(e.localizedMessage)
         }
-        val toolchain = SwiftExecutionSupport.toolchain(environment.project).toolchain
-        val command = SwiftPackageCommands(toolchain, packageDir).run(
+        // `swift run` runs the program in its own working directory, which also picks the toolchain
+        // when `swift` is a proxy such as swiftly.
+        val workingDirectory = try {
+            configuration.workingDirectory?.let(Path::of) ?: packageDir
+        } catch (_: InvalidPathException) {
+            throw ExecutionException("The working directory ${configuration.workingDirectory} is not a valid path.")
+        }
+        val toolchain = SwiftExecutionSupport.toolchain(environment.project, workingDirectory).toolchain
+        val command = SwiftPackageCommands(toolchain, packageDir, workingDirectory).run(
             product = configuration.product,
             configuration = configuration.buildConfiguration,
             programArgs = ParametersListUtil.parse(configuration.programArguments.orEmpty()),
         )
-        configuration.workingDirectory?.let { command.withWorkingDirectory(Path.of(it)) }
         SwiftExecutionSupport.applyEnvironment(command, configuration.environment, configuration.passParentEnvironment)
         // Stopping sends SIGINT first, so the program (and swift run) can exit cleanly, then kills it.
         val handler = KillableColoredProcessHandler(command)

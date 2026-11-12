@@ -234,8 +234,15 @@ class SwiftTestingEventParser(private val tree: SwiftTestTree) {
             val text = m.str("text") ?: return@mapNotNull null
             "  ".repeat(m.num("_indentation")?.toInt() ?: 0) + text
         }
+        val known = issue?.bool("isKnown") == true
+        if (testId != null && !known && !tree.wasStarted(nodeId(testId))) {
+            // A test whose arguments or traits fail to evaluate (`@Test(arguments: try …)`,
+            // `.enabled(if: try …)`) never starts or ends: the issue is all the stream says of it.
+            failUnstarted(testId, SwiftTestTree.Issue(summary, location, details))
+            return
+        }
         val node = testId?.let { targetNode(it, p) }
-        if (node == null || issue?.bool("isKnown") == true) {
+        if (node == null || known) {
             // Known issues (`withKnownIssue`) do not fail the test; show them as its output.
             val text = buildString {
                 if (issue?.bool("isKnown") == true) append("Known issue: ")
@@ -248,6 +255,18 @@ class SwiftTestingEventParser(private val tree: SwiftTestTree) {
             return
         }
         issues.getOrPut(node) { ArrayList() } += SwiftTestTree.Issue(summary, location, details)
+    }
+
+    /** Reports [testId], which never started, as failed with [issue]. */
+    private fun failUnstarted(testId: String, issue: SwiftTestTree.Issue) {
+        val node = start(testId)
+        if (isSuite(testId) || isParameterized(testId)) {
+            issues[node] = mutableListOf(issue)
+            reportIssuesOfSuite(testId, node)
+            tree.finishSuite(node)
+        } else {
+            tree.finishTest(node, null, SwiftTestTree.Failure.of(listOf(issue)))
+        }
     }
 
     /** The node an issue of [testId] belongs to: the running case for a parameterized function, else the test or suite. */

@@ -97,6 +97,33 @@ class SwiftTestingEventParserTest {
         """.trimIndent(), parse(stream))
     }
 
+    @Test fun `a test that fails before it starts is reported as failed`() {
+        // What Swift Testing sends when `arguments:` or a trait's condition throws: only the issue.
+        val stream = listOf(
+            suite("M.S"), test("M.S/a()/T.swift:3:2"), test("M.S/p(x:)/T.swift:4:2", parameterized = true),
+            event("runStarted", null),
+            event("testStarted", "M.S"),
+            event("issueRecorded", "M.S/a()/T.swift:3:2", extra = ""","issue":{"isKnown":false}"""),
+            event("issueRecorded", "M.S/p(x:)/T.swift:4:2", extra = ""","issue":{"isKnown":false}"""),
+            event("testEnded", "M.S"),
+            event("runEnded", null),
+        ).joinToString("\n")
+        assertEquals("""
+            suite+ target:M <- 0 'M' swift-target://M
+            suite+ swift-testing:M.S <- target:M 'S' swift-testing://M.S
+            test+ swift-testing:M.S/a()/T.swift:3:2 <- swift-testing:M.S 'a()' swift-testing://M.S/a() @/src/T.swift:3:2
+            failed swift-testing:M.S/a()/T.swift:3:2 'issueRecorded text' [issueRecorded text]
+            test- swift-testing:M.S/a()/T.swift:3:2 -
+            suite+ swift-testing:M.S/p(x:)/T.swift:4:2 <- swift-testing:M.S 'p(x:)' swift-testing://M.S/p(x:) @/src/T.swift:3:2
+            test+ swift-testing:M.S/p(x:)/T.swift:4:2#issues <- swift-testing:M.S/p(x:)/T.swift:4:2 'Recorded issue' swift-testing://M.S/p(x:) @/src/T.swift:3:2
+            failed swift-testing:M.S/p(x:)/T.swift:4:2#issues 'issueRecorded text' [issueRecorded text]
+            test- swift-testing:M.S/p(x:)/T.swift:4:2#issues 0ms
+            suite- swift-testing:M.S/p(x:)/T.swift:4:2
+            suite- swift-testing:M.S
+            suite- target:M
+        """.trimIndent(), parse(stream))
+    }
+
     @Test fun `a second run in the same stream gets new nodes`() {
         val stream = listOf(
             test("M.t()/T.swift:3:2"),
