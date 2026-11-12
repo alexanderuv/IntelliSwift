@@ -1,5 +1,6 @@
 package io.github.alexanderuv.intelliswift.swiftpm.project
 
+import com.intellij.execution.ExecutionException
 import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.externalSystem.importing.ProjectResolverPolicy
 import com.intellij.openapi.externalSystem.model.DataNode
@@ -31,10 +32,11 @@ class SwiftPmProjectResolver : ExternalSystemProjectResolver<SwiftPmExecutionSet
         val root = SwiftPmPaths.packageDirectory(projectPath)
         if (isPreviewMode) return SwiftPmProjectMapper.preview(root)
 
-        val toolchain = SwiftPmToolchains.require()
-        listener.onTaskOutput(id, "Loading package at $root with ${toolchain.swift} (Swift ${toolchain.version})\n", ProcessOutputType.SYSTEM)
+        // Registered first, so that a cancel during the toolchain check is not lost.
         val cancelled = SwiftPmCancellation.register(id)
         try {
+            val toolchain = SwiftPmToolchains.require()
+            listener.onTaskOutput(id, "Loading package at $root with ${toolchain.swift} (Swift ${toolchain.version})\n", ProcessOutputType.SYSTEM)
             val graph = SwiftPackageGraphLoader(toolchain).load(root, cancelled::get) { text, outputType ->
                 // Standard output is the JSON being parsed; progress and diagnostics go to stderr.
                 if (!ProcessOutputType.isStdout(outputType)) listener.onTaskOutput(id, text, ProcessOutputType.fromKey(outputType))
@@ -44,6 +46,8 @@ class SwiftPmProjectResolver : ExternalSystemProjectResolver<SwiftPmExecutionSet
             throw ExternalSystemException(e.message, e)
         } catch (e: SwiftPackageJsonException) {
             throw ExternalSystemException("Unexpected output from SwiftPM: ${e.message}", e)
+        } catch (e: ExecutionException) {
+            throw SwiftPmToolchains.cannotStart(e)
         } finally {
             SwiftPmCancellation.unregister(id)
         }

@@ -181,6 +181,18 @@ class SwiftPmProjectMapperTest {
         assertEquals(setOf("/tool/.build", "/tool/.swiftpm"), root.getPaths(ExternalSystemSourceType.EXCLUDED).map { it.path }.toSet())
     }
 
+    @Test fun `module names stay unique ignoring case`() {
+        // The root is named "Utils"; its path: dependency's name and identity are both "utils".
+        val root = SwiftPackage("app", "Utils", Path.of("/app"), "6.0", emptyList(), emptyList())
+        val dependency = SwiftPackage("utils", "utils", Path.of("/utils"), "6.0", emptyList(), emptyList())
+        val tree = SwiftResolvedPackage("app", "Utils", "", "unspecified", root.path,
+            listOf(SwiftResolvedPackage("utils", "utils", "", "unspecified", dependency.path, emptyList())))
+        val graph = SwiftPackageGraph(root, tree, listOf(root, dependency).associateBy { it.identity })
+
+        val names = packageModules(SwiftPmProjectMapper.map(graph)).map { it.data.externalName }
+        assertEquals(listOf("Utils", "utils.2"), names)
+    }
+
     @Test fun `preview mode maps only the package directory`() {
         val project = SwiftPmProjectMapper.preview(Path.of(G))
         val module = packageModules(project).single()

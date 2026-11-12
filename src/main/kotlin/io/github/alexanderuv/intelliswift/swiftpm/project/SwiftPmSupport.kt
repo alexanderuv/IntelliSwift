@@ -1,5 +1,6 @@
 package io.github.alexanderuv.intelliswift.swiftpm.project
 
+import com.intellij.execution.ExecutionException
 import com.intellij.openapi.externalSystem.model.ExternalSystemException
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskId
 import com.intellij.openapi.util.io.FileUtil
@@ -52,6 +53,12 @@ internal object SwiftPmToolchains {
         }
         return toolchain
     }
+
+    /** The error for a `swift` that passed [require] but could not be started. */
+    fun cannotStart(e: ExecutionException): ExternalSystemException = ExternalSystemException(
+        "Cannot start swift: ${e.message}. Check the Swift toolchain in Settings | Languages & Frameworks | Swift.",
+        e,
+    )
 }
 
 /**

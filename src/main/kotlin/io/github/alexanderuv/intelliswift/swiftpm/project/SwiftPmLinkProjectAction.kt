@@ -46,9 +46,12 @@ class SwiftPmLinkProjectAction : DumbAwareAction() {
         }
     }
 
-    /** The package directory the context file stands for. */
+    /**
+     * The package directory the context file stands for. Only packages on the local file system
+     * can be linked: SwiftPM runs on directories, not on files inside archives or remote ones.
+     */
     private fun contextPackage(e: AnActionEvent): VirtualFile? =
-        e.getData(CommonDataKeys.VIRTUAL_FILE)?.let(SwiftPmPaths::packageDirectory)
+        e.getData(CommonDataKeys.VIRTUAL_FILE)?.takeIf { it.isInLocalFileSystem }?.let(SwiftPmPaths::packageDirectory)
 
     private fun isLinked(project: Project, directory: VirtualFile): Boolean {
         val path = directory.toNioPath().normalize()

@@ -70,6 +70,7 @@ object SwiftPmProjectMapper {
         private val editable = graph.packages.values.filter(graph::isEditable)
         private val targetModules = HashMap<Pair<String, String>, DataNode<ModuleData>>()
         private val libraries = HashMap<Pair<String, String>, LibraryData>()
+        /** Module names given so far, lowercased. */
         private val usedModuleNames = HashSet<String>()
 
         fun run(): DataNode<ProjectData> {
@@ -199,14 +200,19 @@ object SwiftPmProjectMapper {
             }
         }
 
+        /**
+         * [preferred], else [fallback], else [fallback] with a number: the first not yet taken.
+         * Names are compared ignoring case, since each module's `.iml` file is named after it and
+         * file systems may ignore case.
+         */
         private fun uniqueModuleName(preferred: String, fallback: String): String {
-            val name = if (usedModuleNames.none { it.equals(preferred, ignoreCase = true) }) preferred else fallback
-            usedModuleNames += name
+            val name = (sequenceOf(preferred, fallback) + generateSequence(2) { it + 1 }.map { "$fallback.$it" })
+                .first { candidate -> candidate.lowercase() !in usedModuleNames }
+            usedModuleNames += name.lowercase()
             return name
         }
 
-        private fun versionOf(pkg: SwiftPackage): String =
-            graph.resolved.flatten().firstOrNull { it.identity == pkg.identity }?.version ?: "unspecified"
+        private fun versionOf(pkg: SwiftPackage): String = graph.resolvedNode(pkg)?.version ?: "unspecified"
 
         private fun packageData(pkg: SwiftPackage) =
             SwiftPackageData(pkg.identity, pkg.name, path(pkg.path), graph.isEditable(pkg), versionOf(pkg), pkg.toolsVersion)

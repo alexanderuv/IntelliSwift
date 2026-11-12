@@ -1,5 +1,6 @@
 package io.github.alexanderuv.intelliswift.swiftpm.project
 
+import com.intellij.execution.ExecutionException
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.externalSystem.model.ExternalSystemException
@@ -34,9 +35,10 @@ class SwiftPmTaskManager : ExternalSystemTaskManager<SwiftPmExecutionSettings> {
             )
         }
         if (tasks.isEmpty()) throw ExternalSystemException("No SwiftPM task to run.")
-        val commands = SwiftPackageCommands(SwiftPmToolchains.require(), SwiftPmPaths.packageDirectory(projectPath))
+        // Registered first, so that a cancel during the toolchain check is not lost.
         val cancelled = SwiftPmCancellation.register(id)
         try {
+            val commands = SwiftPackageCommands(SwiftPmToolchains.require(), SwiftPmPaths.packageDirectory(projectPath))
             for (task in tasks) {
                 val command = task.commandLine(commands, settings.arguments).withEnvironmentOf(settings)
                 // The process handler reports the command line itself, as system output.
@@ -47,6 +49,8 @@ class SwiftPmTaskManager : ExternalSystemTaskManager<SwiftPmExecutionSettings> {
                     throw ExternalSystemException("Task '${task.name}' failed: `swift` exited with code ${output.exitCode}.")
                 }
             }
+        } catch (e: ExecutionException) {
+            throw SwiftPmToolchains.cannotStart(e)
         } finally {
             SwiftPmCancellation.unregister(id)
         }

@@ -9,6 +9,7 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.vfs.VirtualFile
 import io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmSettings
 import java.nio.file.Path
@@ -58,11 +59,21 @@ object SwiftPmProjectModel {
         val id = ExternalSystemApiUtil.getExternalProjectId(module) ?: return null
         val rootPath = ExternalSystemApiUtil.getExternalRootProjectPath(module) ?: return null
         val projectNode = projectNode(module.project, rootPath) ?: return null
-        @Suppress("UNCHECKED_CAST")
-        return ExternalSystemApiUtil.findFirstRecursively(projectNode) {
-            it.key == ProjectKeys.MODULE && (it.data as ModuleData).id == id
-        } as DataNode<ModuleData>?
+        return moduleIndex(projectNode)[id]
     }
+
+    /**
+     * The module nodes of [projectNode] by id. Built once per imported tree and kept on its root:
+     * a reload replaces the tree, and the index with it. Build and gutter features look modules up
+     * per file and per element, which would otherwise walk the whole tree each time.
+     */
+    private fun moduleIndex(projectNode: DataNode<ProjectData>): Map<String, DataNode<ModuleData>> =
+        projectNode.getUserData(MODULE_INDEX) ?: projectNode.putUserDataIfAbsent(
+            MODULE_INDEX,
+            ExternalSystemApiUtil.findAllRecursively(projectNode, ProjectKeys.MODULE).associateBy { it.data.id },
+        )
+
+    private val MODULE_INDEX = Key.create<Map<String, DataNode<ModuleData>>>("SwiftPM module nodes by id")
 
     /** The target [module] was imported from; `null` for a package module or a non-SwiftPM module. */
     fun targetOf(module: Module): SwiftTargetData? = moduleNode(module)?.let { ExternalSystemApiUtil.find(it, SwiftTargetData.KEY)?.data }
