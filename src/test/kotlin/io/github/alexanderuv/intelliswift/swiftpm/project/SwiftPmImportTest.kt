@@ -14,6 +14,7 @@ import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskType
 import com.intellij.openapi.externalSystem.service.execution.ProgressExecutionMode
 import com.intellij.openapi.externalSystem.service.project.ProjectDataManager
 import com.intellij.openapi.externalSystem.service.project.autoimport.ProjectAware
+import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil
 import com.intellij.openapi.externalSystem.util.ExternalSystemUtil
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
@@ -135,6 +136,30 @@ class SwiftPmImportTest : HeavyPlatformTestCase() {
         runReadActionBlocking {
             assertEquals(setOf("Greeter.CHelpers", "Utils.Utils"), moduleDependencies(module("Greeter.Greeter")))
             assertEquals("utils", SwiftPmProjectModel.packageOf(module("Utils.Utils"))?.identity)
+        }
+    }
+
+    fun `test unlinking a root removes its modules that only share ids with another root's`() {
+        val fixture = linkAndLoadGreeter("same identities") ?: return
+        // Another root whose `path:` dependency is a different package also named Utils: same ids, other directory.
+        val other = fixture.greeter.resolveSibling("other").createDirectories()
+        SwiftPmFixtures.copyPackages(other)
+        val otherGreeter = other.resolve("Greeter")
+        refresh(other)
+        TrustedProjects.setProjectTrusted(otherGreeter, true)
+        val otherPath = SwiftPmPaths.systemIndependent(otherGreeter)
+        link(otherPath)
+        val otherUtils = SwiftPmPaths.systemIndependent(other.resolve("Utils"))
+        fun modulesOf(dir: String) = ModuleManager.getInstance(project).modules.filter { ExternalSystemApiUtil.getExternalProjectPath(it) == dir }
+        assertFalse("the other Utils has modules of its own", modulesOf(otherUtils).isEmpty())
+
+        runBlocking { SwiftPmUnlinkedProjectAware().unlinkProject(project, otherPath) }
+
+        assertEmpty(modulesOf(otherUtils).map { it.name })
+        assertEmpty(modulesOf(otherPath).map { it.name })
+        assertTrue(moduleNames().containsAll(setOf("Greeter", "Greeter.Greeter", "Utils", "Utils.Utils")))
+        runReadActionBlocking {
+            assertEquals(listOf(fixture.utils.resolve("Sources/Utils")), sourceRoots(module("Utils.Utils"), test = false))
         }
     }
 

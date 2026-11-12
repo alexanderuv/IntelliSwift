@@ -14,6 +14,7 @@ import com.intellij.openapi.externalSystem.service.project.trusted.ExternalSyste
 import com.intellij.openapi.externalSystem.settings.ExternalSystemSettingsListener
 import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil
 import com.intellij.openapi.externalSystem.util.ExternalSystemUtil
+import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.OrderEnumerator
@@ -71,13 +72,22 @@ class SwiftPmOpenProjectProvider : AbstractOpenProjectProvider() {
             ExternalSystemApiUtil.isExternalSystemAwareModule(systemId, it) && ExternalSystemApiUtil.getExternalRootProjectPath(it) == externalProjectPath
         }
         if (owned.isEmpty()) return emptySet()
-        // Module id -> a linked root whose imported data still has a module with that id.
-        val elsewhere = HashMap<String, String>()
+        // A module of another linked root's imported data -> that root. A module is the same one
+        // when both its id and its package directory match: ids are SwiftPM package identities,
+        // the directory name, so different packages in different roots may share one.
+        val elsewhere = HashMap<Pair<String, String>, String>()
         for (root in SwiftPmProjectModel.linkedPackagePaths(project)) {
             val node = SwiftPmProjectModel.projectNode(project, root) ?: continue
-            ExternalSystemApiUtil.findAllRecursively(node, ProjectKeys.MODULE).forEach { elsewhere.putIfAbsent(it.data.id, root) }
+            ExternalSystemApiUtil.findAllRecursively(node, ProjectKeys.MODULE).forEach {
+                elsewhere.putIfAbsent(it.data.id to it.data.linkedExternalProjectPath, root)
+            }
         }
-        val (kept, removed) = owned.partition { ExternalSystemApiUtil.getExternalProjectId(it) in elsewhere }
+        fun rootStillUsing(module: Module): String? {
+            val id = ExternalSystemApiUtil.getExternalProjectId(module) ?: return null
+            val path = ExternalSystemApiUtil.getExternalProjectPath(module) ?: return null
+            return elsewhere[id to path]
+        }
+        val (kept, removed) = owned.partition { rootStillUsing(it) != null }
         if (removed.isNotEmpty()) {
             moduleManager.getModifiableModel().apply {
                 removed.forEach(::disposeModule)
@@ -85,7 +95,7 @@ class SwiftPmOpenProjectProvider : AbstractOpenProjectProvider() {
             }
         }
         removeOrphanLibraries(project, moduleManager)
-        return kept.mapNotNull { module -> ExternalSystemApiUtil.getExternalProjectId(module)?.let(elsewhere::get) }.toSet()
+        return kept.mapNotNull(::rootStillUsing).toSet()
     }
 
     private fun removeOrphanLibraries(project: Project, moduleManager: ModuleManager) {
