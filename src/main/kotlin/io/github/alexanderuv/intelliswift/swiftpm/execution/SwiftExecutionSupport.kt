@@ -1,0 +1,86 @@
+package io.github.alexanderuv.intelliswift.swiftpm.execution
+
+import com.intellij.execution.ExecutionException
+import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.execution.configurations.RuntimeConfigurationError
+import com.intellij.execution.filters.Filter
+import com.intellij.execution.filters.OpenFileHyperlinkInfo
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.ThrowableComputable
+import com.intellij.openapi.vfs.LocalFileSystem
+import io.github.alexanderuv.intelliswift.swiftpm.model.SwiftPackage
+import io.github.alexanderuv.intelliswift.toolchain.SwiftToolchain
+import io.github.alexanderuv.intelliswift.toolchain.SwiftToolchainSettings
+import io.github.alexanderuv.intelliswift.toolchain.SwiftVersion
+import java.nio.file.Files
+import java.nio.file.InvalidPathException
+import java.nio.file.Path
+
+/** Shared parts of the Swift Run and Swift Test configurations. */
+object SwiftExecutionSupport {
+
+    /** A toolchain and its version, which decides some command line flags. */
+    class ResolvedToolchain(val toolchain: SwiftToolchain, val version: SwiftVersion?)
+
+    /**
+     * The configured or detected toolchain. Detecting it and asking its version start processes,
+     * so on the UI thread this runs under a modal progress.
+     */
+    fun toolchain(project: Project): ResolvedToolchain {
+        val resolve = ThrowableComputable<ResolvedToolchain, ExecutionException> {
+            val toolchain = SwiftToolchainSettings.toolchain()
+                ?: throw ExecutionException("No Swift toolchain found. Configure it in Settings | Languages & Frameworks | Swift.")
+            if (!toolchain.isValid) throw ExecutionException("The Swift toolchain ${toolchain.swift} is not an executable.")
+            ResolvedToolchain(toolchain, toolchain.version)
+        }
+        return if (ApplicationManager.getApplication().isDispatchThread) {
+            ProgressManager.getInstance().runProcessWithProgressSynchronously(resolve, "Detecting Swift toolchain", true, project)
+        } else {
+            resolve.compute()
+        }
+    }
+
+    /** Checks that [directory] is a SwiftPM package directory; returns it as a path. */
+    fun checkPackageDirectory(directory: String?): Path {
+        if (directory.isNullOrBlank()) throw RuntimeConfigurationError("The package directory is not set.")
+        val path = try {
+            Path.of(directory)
+        } catch (_: InvalidPathException) {
+            throw RuntimeConfigurationError("The package directory is not a valid path.")
+        }
+        if (!Files.isRegularFile(path.resolve(SwiftPackage.MANIFEST))) {
+            throw RuntimeConfigurationError("$directory does not contain a ${SwiftPackage.MANIFEST}.")
+        }
+        return path
+    }
+
+    /** Sets the environment of [command]: [envs] on top of the IDE's environment if [passParentEnvs]. */
+    fun applyEnvironment(command: GeneralCommandLine, envs: Map<String, String>, passParentEnvs: Boolean): GeneralCommandLine =
+        command.withEnvironment(envs).withParentEnvironmentType(
+            if (passParentEnvs) GeneralCommandLine.ParentEnvironmentType.CONSOLE else GeneralCommandLine.ParentEnvironmentType.NONE,
+        )
+}
+
+/**
+ * Turns `path/File.swift:line[:column]` in console output (compiler diagnostics, test failures)
+ * into links to the source.
+ */
+class SwiftFileLocationFilter(private val project: Project) : Filter {
+    override fun applyFilter(line: String, entireLength: Int): Filter.Result? {
+        val items = LOCATION.findAll(line).mapNotNull { m ->
+            val file = LocalFileSystem.getInstance().findFileByPath(m.groups[1]!!.value) ?: return@mapNotNull null
+            val lineNumber = m.groups[2]!!.value.toInt() - 1
+            val column = (m.groups[3]?.value?.toIntOrNull() ?: 1) - 1
+            val start = entireLength - line.length + m.range.first
+            Filter.ResultItem(start, start + m.value.length, OpenFileHyperlinkInfo(project, file, lineNumber, column))
+        }.toList()
+        return if (items.isEmpty()) null else Filter.Result(items)
+    }
+
+    private companion object {
+        /** An absolute path (POSIX or Windows) to a `.swift` file, with a line and maybe a column. */
+        val LOCATION = Regex("""((?:/|[A-Za-z]:[\\/])[^:\n]*?\.swift):(\d+)(?::(\d+))?""")
+    }
+}

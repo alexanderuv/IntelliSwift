@@ -1,0 +1,42 @@
+Test Suite 'All tests' started at 2026-11-11 20:46:31.432.
+Test Suite 'GreeterTests.xctest' started at 2026-11-11 20:46:31.434.
+Test Suite 'GreeterXCTests' started at 2026-11-11 20:46:31.434.
+Test Case '-[GreeterTests.GreeterXCTests testFailing]' started.
+/FIXTURE/Greeter/Tests/GreeterTests/GreeterXCTests.swift:10: error: -[GreeterTests.GreeterXCTests testFailing] : XCTAssertEqual failed: ("HELLO, ADA!") is not equal to ("nope")
+Test Case '-[GreeterTests.GreeterXCTests testFailing]' failed (0.108 seconds).
+Test Case '-[GreeterTests.GreeterXCTests testGreeting]' started.
+Test Case '-[GreeterTests.GreeterXCTests testGreeting]' passed (0.000 seconds).
+Test Case '-[GreeterTests.GreeterXCTests testSkipped]' started.
+/FIXTURE/Greeter/Tests/GreeterTests/GreeterXCTests.swift:14: -[GreeterTests.GreeterXCTests testSkipped] : Test skipped - Not ready
+Test Case '-[GreeterTests.GreeterXCTests testSkipped]' skipped (0.001 seconds).
+Test Suite 'GreeterXCTests' failed at 2026-11-11 20:46:31.543.
+	 Executed 3 tests, with 1 test skipped and 1 failure (0 unexpected) in 0.109 (0.109) seconds
+Test Suite 'GreeterTests.xctest' failed at 2026-11-11 20:46:31.543.
+	 Executed 3 tests, with 1 test skipped and 1 failure (0 unexpected) in 0.109 (0.109) seconds
+Test Suite 'All tests' failed at 2026-11-11 20:46:31.543.
+	 Executed 3 tests, with 1 test skipped and 1 failure (0 unexpected) in 0.109 (0.111) seconds
+􀟈  Test run started.
+􀄵  Testing Library Version: 2403
+􀄵  Target Platform: arm64e-apple-macos14.0
+􀟈  Test topLevel() started.
+􀟈  Suite "Edge cases" started.
+􀟈  Suite GreeterSuite started.
+􀟈  Test loudGreeting() started.
+􀟈  Test "names" started.
+􀟈  Test failingExpectation() started.
+􀙟  Test disabled() skipped: "Not ready"
+􀟈  Test case passing 1 argument name → "Ada" to "names" started.
+􀟈  Test case passing 1 argument name → "Grace" to "names" started.
+􁁛  Test loudGreeting() passed after 0.001 seconds.
+􁁛  Test topLevel() passed after 0.001 seconds.
+􁁛  Test "names" with 2 test cases passed after 0.001 seconds.
+􁁛  Suite GreeterSuite passed after 0.001 seconds.
+􀢄  Test failingExpectation() recorded an issue at GreeterTests.swift:21:9: Expectation failed: Greeter(name: "Ada").greeting() == "nope"
+􀄵  Greeter(name: "Ada").greeting() == "nope" → false
+􀄵    Greeter(name: "Ada").greeting() → "Hello, Ada."
+􀢄  Test failingExpectation() failed after 0.001 seconds with 1 issue.
+􀢄  Suite "Edge cases" failed after 0.001 seconds with 1 issue.
+􀢄  Test run with 5 tests in 2 suites failed after 0.001 seconds with 1 issue.
+Note: Some test targets reported failures:
+  - GreeterTests (XCTest)
+  - GreeterTests (Swift Testing)

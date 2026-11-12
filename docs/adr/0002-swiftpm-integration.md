@@ -34,7 +34,7 @@ The project model comes from the `swift` CLI of the selected toolchain, never fr
 ### Project model mapping
 
 - The root package becomes a module whose content root is the package directory, with `.build`
-  excluded. Each target becomes a module with its directory as the content root: a source root
+  and `.swiftpm` excluded. Each target becomes a module with its directory as the content root: a source root
   for regular, executable, macro and plugin targets, a test source root for test targets.
 - Target dependencies become module dependencies. A product dependency becomes a dependency on
   the product's target modules (for a local `path:` package) or on a library (for a remote one).

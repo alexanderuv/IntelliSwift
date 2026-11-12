@@ -15,3 +15,12 @@ import Testing
 @Test func topLevel() {
     #expect(1 + 1 == 2)
 }
+
+@Suite("Edge cases") struct EdgeCases {
+    @Test func failingExpectation() {
+        #expect(Greeter(name: "Ada").greeting() == "nope")
+    }
+
+    @Test(.disabled("Not ready"))
+    func disabled() {}
+}

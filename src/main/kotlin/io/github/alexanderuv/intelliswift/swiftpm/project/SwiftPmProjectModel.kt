@@ -87,6 +87,18 @@ object SwiftPmProjectModel {
     /** The package containing [file], also for files outside any target (such as `Package.swift`). */
     fun packageFor(project: Project, file: VirtualFile): SwiftPackageData? = moduleFor(project, file)?.let(::packageOf)
 
+    /** The products of the package that [module] belongs to (a package module or one of its target modules). */
+    fun productsOf(module: Module): List<SwiftProductData> {
+        var node: DataNode<*>? = moduleNode(module)
+        while (node != null && node.key == ProjectKeys.MODULE) {
+            if (ExternalSystemApiUtil.find(node, SwiftPackageData.KEY) != null) {
+                return ExternalSystemApiUtil.findAll(node, SwiftProductData.KEY).map { it.data }
+            }
+            node = node.parent
+        }
+        return emptyList()
+    }
+
     /** The IDE module of [target] of the package at [packagePath], once imported. */
     fun moduleForTarget(project: Project, packagePath: String, target: String): Module? =
         ModuleManager.getInstance(project).modules.firstOrNull { module ->
