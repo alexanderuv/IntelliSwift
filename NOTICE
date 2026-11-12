@@ -1,0 +1,20 @@
+IntelliSwift
+Copyright 2026 Alex Ubillus
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The lexer (src/main/kotlin/io/github/alexanderuv/intelliswift/lexer) and the parser
+(src/main/kotlin/io/github/alexanderuv/intelliswift/parser) are ports of parts of swift-syntax
+to Kotlin, in particular Sources/SwiftParser/Lexer/Cursor.swift, RegexLiteralLexer.swift,
+TokenPrecedence.swift, Recovery.swift and the SwiftParser grammar productions, and the keyword
+and character tables derived from swift-syntax's CodeGeneration sources.
+
+swift-syntax
+https://github.com/swiftlang/swift-syntax
+Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
+Licensed under the Apache License, Version 2.0 with Runtime Library Exception.
+See https://swift.org/LICENSE.txt for license information.
+See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors.
+
+tools/swift-syntax-oracle depends on swift-syntax as a library; it is a development tool and is
+not part of the plugin distribution.

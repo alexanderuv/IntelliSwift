@@ -1,0 +1,12 @@
+.gradle/
+.kotlin/
+build/
+out/
+.idea/
+*.iml
+.intellijPlatform/
+.DS_Store
+
+# SwiftPM
+tools/*/.build/
+tools/*/.swiftpm/

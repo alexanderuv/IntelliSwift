@@ -1,0 +1,7 @@
+# Pinned corpus for scripts/conformance.sh: <directory> <git url> <tag>
+swift-syntax https://github.com/swiftlang/swift-syntax.git 604.0.0
+swift-format https://github.com/swiftlang/swift-format.git 604.0.0
+swift-collections https://github.com/apple/swift-collections.git 1.7.6
+swift-argument-parser https://github.com/apple/swift-argument-parser.git 1.8.2
+swift-algorithms https://github.com/apple/swift-algorithms.git 1.2.1
+swift-nio https://github.com/apple/swift-nio.git 2.105.0

@@ -1,0 +1,38 @@
+<idea-plugin>
+    <id>io.github.alexanderuv.intelliswift</id>
+    <name>IntelliSwift</name>
+    <vendor url="https://github.com/alexanderuv/IntelliSwift">IntelliSwift</vendor>
+    <description><![CDATA[
+        <p>Swift language support built on IntelliJ PSI.</p>
+        <p>A native lexer and parser, validated against swift-syntax, give Swift 6 files a full PSI tree:
+        syntax highlighting, structure view, folding, brace matching and commenting.</p>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="Swift" implementationClass="io.github.alexanderuv.intelliswift.lang.SwiftFileType"
+                  fieldName="INSTANCE" language="Swift" extensions="swift"/>
+        <lang.parserDefinition language="Swift"
+                               implementationClass="io.github.alexanderuv.intelliswift.parser.SwiftParserDefinition"/>
+
+        <lang.syntaxHighlighterFactory language="Swift"
+                                       implementationClass="io.github.alexanderuv.intelliswift.highlighting.SwiftSyntaxHighlighterFactory"/>
+        <annotator language="Swift"
+                   implementationClass="io.github.alexanderuv.intelliswift.highlighting.SwiftHighlightingAnnotator"/>
+        <colorSettingsPage implementation="io.github.alexanderuv.intelliswift.highlighting.SwiftColorSettingsPage"/>
+
+        <lang.braceMatcher language="Swift" implementationClass="io.github.alexanderuv.intelliswift.editor.SwiftBraceMatcher"/>
+        <lang.quoteHandler language="Swift" implementationClass="io.github.alexanderuv.intelliswift.editor.SwiftQuoteHandler"/>
+        <lang.commenter language="Swift" implementationClass="io.github.alexanderuv.intelliswift.editor.SwiftCommenter"/>
+        <lang.foldingBuilder language="Swift" implementationClass="io.github.alexanderuv.intelliswift.editor.SwiftFoldingBuilder"/>
+
+        <lang.psiStructureViewFactory language="Swift"
+                                      implementationClass="io.github.alexanderuv.intelliswift.structure.SwiftStructureViewFactory"/>
+        <breadcrumbsInfoProvider implementation="io.github.alexanderuv.intelliswift.structure.SwiftBreadcrumbsProvider"/>
+
+        <lang.findUsagesProvider language="Swift"
+                                 implementationClass="io.github.alexanderuv.intelliswift.editor.SwiftFindUsagesProvider"/>
+        <lang.namesValidator language="Swift" implementationClass="io.github.alexanderuv.intelliswift.editor.SwiftNamesValidator"/>
+    </extensions>
+</idea-plugin>

@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Build and test
+        run: ./gradlew buildPlugin test
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: build/reports/tests
+      - name: Upload plugin
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugin
+          path: build/distributions/*.zip
+
+  verify:
+    name: Plugin verifier
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Free disk space for IDE downloads
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+      - name: Verify plugin
+        run: ./gradlew verifyPlugin
+      - name: Upload verifier reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: verifier-reports
+          path: build/reports/pluginVerifier
+
+  conformance:
+    name: swift-syntax conformance
+    # Compares the parser with swift-syntax on a pinned corpus; see scripts/conformance.sh.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Swift version
+        run: swift --version
+      - name: Cache oracle build
+        uses: actions/cache@v6
+        with:
+          path: tools/swift-syntax-oracle/.build
+          key: oracle-${{ runner.os }}-${{ hashFiles('tools/swift-syntax-oracle/Package.resolved', 'tools/swift-syntax-oracle/Sources/**') }}
+      - name: Cache corpus
+        uses: actions/cache@v6
+        with:
+          path: build/corpus/src
+          key: corpus-${{ hashFiles('scripts/corpus.txt') }}
+      - name: Test oracle
+        run: swift test --package-path tools/swift-syntax-oracle
+      - name: Run conformance
+        run: scripts/conformance.sh
+      - name: Upload conformance report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: conformance-report
+          path: build/reports/conformance
