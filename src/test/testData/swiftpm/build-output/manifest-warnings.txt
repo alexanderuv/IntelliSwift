@@ -1,0 +1,4 @@
+warning: 'missingtarget': Source files for target Nowhere should be located under 'Sources/Nowhere', 'Sources', or a custom sources path can be set with the 'path' property in Package.swift
+warning: 'missingtarget': Source files for target Nowhere should be located under 'Sources/Nowhere', 'Sources', or a custom sources path can be set with the 'path' property in Package.swift
+Building for debugging...
+Build complete! (0.18 sec)
