@@ -59,6 +59,25 @@ class SwiftToolchainSelectionTest {
         assertEquals(SwiftVersion(6, 1), toolchain.versionIn(dir))
     }
 
+    @Test fun `the default toolchain is chosen by the version it runs in the package`() {
+        assumeFalse(SystemInfo.isWindows)
+        val dir = Files.createTempDirectory("swift-default")
+        // A swiftly-like proxy whose global default is too old, and a plain toolchain found after it.
+        val proxy = SwiftToolchain(dir.resolve("swiftly/swift").also {
+            it.parent.createDirectories()
+            it.writeText("#!/bin/sh\nif [ -f .swift-version ]; then echo \"Swift version $(cat .swift-version)\"; else echo 'Swift version 5.10'; fi\n")
+            it.toFile().setExecutable(true)
+        })
+        val xcode = SwiftToolchain(dir.resolve("xcode/swift").also {
+            it.parent.createDirectories()
+            it.writeText("#!/bin/sh\necho 'Swift version 6.0'\n")
+            it.toFile().setExecutable(true)
+        })
+        val pinned = dir.resolve("App").createDirectories().also { it.resolve(".swift-version").writeText("6.1") }
+        assertEquals(proxy, SwiftToolchainSettings.preferredToolchainIn(listOf(proxy, xcode), pinned))
+        assertEquals(xcode, SwiftToolchainSettings.preferredToolchainIn(listOf(proxy, xcode), null))
+    }
+
     @Test fun `commands for a dependency run in the root package's directory`() {
         val toolchain = SwiftToolchain(Path.of("/usr/bin/swift"))
         val root = Path.of("/work/App")

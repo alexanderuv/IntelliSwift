@@ -4,6 +4,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.BoundSearchableConfigurable
+import com.intellij.openapi.options.ConfigurationException
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.ui.components.JBLabel
@@ -18,8 +19,9 @@ class SwiftToolchainConfigurable : BoundSearchableConfigurable("Swift", "intelli
     private val status = JBLabel()
     private val requests = AtomicInteger()
 
+    private lateinit var field: TextFieldWithBrowseButton
+
     override fun createPanel(): DialogPanel {
-        lateinit var field: TextFieldWithBrowseButton
         val panel = panel {
             group("Toolchain") {
                 row("Swift executable:") {
@@ -27,10 +29,6 @@ class SwiftToolchainConfigurable : BoundSearchableConfigurable("Swift", "intelli
                         FileChooserDescriptorFactory.singleFile().withTitle("Select the swift Executable"),
                     ).align(AlignX.FILL)
                         .bindText({ settings.swiftPath.orEmpty() }, { settings.swiftPath = it })
-                        .validationOnApply {
-                            val path = SwiftToolchainSettings.normalizePath(it.text)
-                            if (path != null && SwiftToolchainSettings.toolchainAt(path) == null) error("Not a valid path: $path") else null
-                        }
                         .comment("Leave empty to detect: PATH, xcrun, swiftly and the standard install locations.")
                         .component
                 }
@@ -45,10 +43,14 @@ class SwiftToolchainConfigurable : BoundSearchableConfigurable("Swift", "intelli
     }
 
     /**
-     * Shows the path as stored, normalized ([SwiftToolchainSettings.normalizePath]), so the page
-     * is not left modified by surrounding spaces or quotes it dropped.
+     * Refuses a path that is not valid on this system, which would leave no toolchain at all; the
+     * Settings dialog shows the error and stays open. Then shows the path as stored, normalized
+     * ([SwiftToolchainSettings.normalizePath]), so the page is not left modified by surrounding
+     * spaces or quotes it dropped.
      */
     override fun apply() {
+        val path = SwiftToolchainSettings.normalizePath(field.text)
+        if (path != null && SwiftToolchainSettings.toolchainAt(path) == null) throw ConfigurationException("Not a valid path: $path", "Swift Executable")
         super.apply()
         reset()
     }

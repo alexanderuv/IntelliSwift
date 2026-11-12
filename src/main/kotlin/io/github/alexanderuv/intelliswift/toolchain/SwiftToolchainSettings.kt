@@ -36,23 +36,27 @@ class SwiftToolchainSettings : SimplePersistentStateComponent<SwiftToolchainSett
     }
 
     /**
-     * The configured toolchain, or the [defaultToolchain] when none is configured; `null` when the
-     * configured path is not a valid path. Call off the UI thread.
+     * The configured toolchain, or the [defaultToolchain] for commands run in [directory] when none
+     * is configured; `null` when the configured path is not a valid path. Call off the UI thread.
      */
-    fun toolchain(): SwiftToolchain? = swiftPath?.let(::toolchainAt) ?: if (swiftPath == null) defaultToolchain() else null
+    fun toolchain(directory: Path? = null): SwiftToolchain? =
+        swiftPath?.let(::toolchainAt) ?: if (swiftPath == null) defaultToolchain(directory = directory) else null
 
     /**
      * The toolchain used when none is configured: the first detected one that is Swift
-     * [SwiftVersion.MINIMUM] or later. Runs `swift --version`, so call it off the UI thread.
+     * [SwiftVersion.MINIMUM] or later when run in [directory] (`null`: outside any package). The
+     * version depends on the directory for proxies such as swiftly, whose `swift` follows the
+     * package's `.swift-version`; see [SwiftToolchain.versionIn]. Runs `swift --version`, so call
+     * it off the UI thread.
      */
-    fun defaultToolchain(refresh: Boolean = false): SwiftToolchain? =
-        preferredToolchain(detectedToolchains(refresh)) { it.version }
+    fun defaultToolchain(refresh: Boolean = false, directory: Path? = null): SwiftToolchain? =
+        preferredToolchainIn(detectedToolchains(refresh), directory)
 
     companion object {
         fun getInstance(): SwiftToolchainSettings = service()
 
-        /** The toolchain to run SwiftPM with, or `null` if none is configured or installed. */
-        fun toolchain(): SwiftToolchain? = getInstance().toolchain()
+        /** The toolchain to run SwiftPM with in [directory], or `null` if none is configured or installed. */
+        fun toolchain(directory: Path? = null): SwiftToolchain? = getInstance().toolchain(directory)
 
         /** The toolchain whose `swift` is at [path], or `null` if [path] is not a valid path on this system. */
         fun toolchainAt(path: String): SwiftToolchain? = try {
@@ -74,5 +78,9 @@ class SwiftToolchainSettings : SimplePersistentStateComponent<SwiftToolchainSett
          */
         internal fun preferredToolchain(toolchains: List<SwiftToolchain>, versionOf: (SwiftToolchain) -> SwiftVersion?): SwiftToolchain? =
             toolchains.firstOrNull { versionOf(it)?.let { version -> version >= SwiftVersion.MINIMUM } == true } ?: toolchains.firstOrNull()
+
+        /** The [preferredToolchain] of [toolchains] by the versions they run in [directory]. */
+        internal fun preferredToolchainIn(toolchains: List<SwiftToolchain>, directory: Path?): SwiftToolchain? =
+            preferredToolchain(toolchains) { it.versionIn(directory) }
     }
 }
