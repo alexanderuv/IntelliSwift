@@ -1,6 +1,7 @@
 .gradle/
 .kotlin/
-build/
+# Gradle output; anchored, so source packages named `build` are not ignored.
+/build/
 out/
 .idea/
 *.iml
