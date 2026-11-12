@@ -1,0 +1,18 @@
+[1/1] Compiling plugin Lint
+Building for debugging...
+[1/10] Write sources
+[2/10] Write greet-entitlement.plist
+[4/10] Write sources
+[5/10] Compiling CHelpers helpers.c
+[6/10] Write swift-version--58304C5D6DBC2206.txt
+[8/12] Compiling Utils Strings.swift
+[9/12] Emitting module Utils
+[10/14] Emitting module Greeter
+[11/14] Compiling Greeter Greeter.swift
+[12/16] Emitting module greet
+[13/16] Compiling greet main.swift
+[13/16] Write Objects.LinkFileList
+[14/16] Linking greet
+[15/16] Applying greet
+Build complete! (1.33s)
+warning: '--build-system native' has been deprecated and will be removed in a future release; please report an issue at https://github.com/swiftlang/swift-package-manager/issues if you are unable to adopt the default build system.
