@@ -9,20 +9,15 @@
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
-    <!-- SwiftPM build: the External System output parser EP (also needed by the SwiftPM project import). -->
+    <!-- SwiftPM integration (ADR 0002) is built on the External System. -->
     <depends>com.intellij.modules.externalSystem</depends>
     <dependencies>
-        <!-- SwiftPM build: ExternalSystemOutputParserProvider, ExternalSystemModulePropertyManager. -->
+        <!-- ExternalSystemOutputParserProvider, ExternalSystemModulePropertyManager (build integration). -->
         <module name="intellij.platform.externalSystem"/>
-    </dependencies>
-
-    <!-- region SwiftPM project import: dependencies -->
-    <depends>com.intellij.modules.externalSystem</depends>
-    <dependencies>
-        <!-- The External System's settings page, tool window, open provider, trust dialog and ExternalSystemUtil -->
+        <!-- The External System's settings page, tool window, open provider, trust dialog and
+             ExternalSystemUtil (project import). -->
         <module name="intellij.platform.externalSystem.impl"/>
     </dependencies>
-    <!-- endregion -->
 
     <extensions defaultExtensionNs="com.intellij">
         <fileType name="Swift" implementationClass="io.github.alexanderuv.intelliswift.lang.SwiftFileType"

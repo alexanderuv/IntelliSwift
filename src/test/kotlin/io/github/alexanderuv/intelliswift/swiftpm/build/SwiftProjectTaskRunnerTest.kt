@@ -30,6 +30,7 @@ import com.intellij.testFramework.HeavyPlatformTestCase
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.PsiTestUtil
 import com.intellij.testFramework.replaceService
+import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPackageModuleType
 import io.github.alexanderuv.intelliswift.toolchain.SwiftToolchainSettings
 import java.nio.file.Files
 import java.nio.file.Path
@@ -72,7 +73,7 @@ class SwiftProjectTaskRunnerTest : HeavyPlatformTestCase() {
     // region canRun
 
     fun `test claims modules of the Swift module type`() {
-        assertTrue(canRun(ModuleBuildTaskImpl(module("swift", SwiftPackageLocator.SWIFT_MODULE_TYPE_ID, "plain"))))
+        assertTrue(canRun(ModuleBuildTaskImpl(module("swift", SwiftPackageModuleType.ID, "plain"))))
     }
 
     fun `test claims modules inside a SwiftPM package`() {
@@ -124,10 +125,10 @@ class SwiftProjectTaskRunnerTest : HeavyPlatformTestCase() {
 
     fun `test a file's target`() {
         val pkg = root.resolve("Pkg")
-        assertEquals(SwiftBuildScope(pkg, "Lib"), SwiftPackageLocator.scopeOf(vfs(pkg.resolve("Sources/Lib/Lib.swift"))))
-        assertEquals(SwiftBuildScope(pkg, null), SwiftPackageLocator.scopeOf(vfs(pkg.resolve("Package.swift"))))
-        assertEquals(SwiftBuildScope(root.resolve("Outer/Inner"), "Inner"), SwiftPackageLocator.scopeOf(vfs(root.resolve("Outer/Inner/Sources/Inner/Inner.swift"))))
-        assertNull(SwiftPackageLocator.scopeOf(vfs(root.resolve("plain/Main.java"))))
+        assertEquals(SwiftBuildScope(pkg, "Lib"), SwiftPackageLocator.scopeOf(project, vfs(pkg.resolve("Sources/Lib/Lib.swift"))))
+        assertEquals(SwiftBuildScope(pkg, null), SwiftPackageLocator.scopeOf(project, vfs(pkg.resolve("Package.swift"))))
+        assertEquals(SwiftBuildScope(root.resolve("Outer/Inner"), "Inner"), SwiftPackageLocator.scopeOf(project, vfs(root.resolve("Outer/Inner/Sources/Inner/Inner.swift"))))
+        assertNull(SwiftPackageLocator.scopeOf(project, vfs(root.resolve("plain/Main.java"))))
     }
 
     fun `test builds of a package are merged`() {
@@ -182,7 +183,7 @@ class SwiftProjectTaskRunnerTest : HeavyPlatformTestCase() {
     fun `test builds a package`() {
         if (!toolchainAvailable()) return
         copyFixture("Greeter", "Utils")
-        val module = module("Greeter", SwiftPackageLocator.SWIFT_MODULE_TYPE_ID, "Greeter")
+        val module = module("Greeter", SwiftPackageModuleType.ID, "Greeter")
         val view = recordBuildEvents()
 
         val result = PlatformTestUtil.waitForPromise(ProjectTaskManager.getInstance(project).build(module), BUILD_TIMEOUT_MS)!!
@@ -204,7 +205,7 @@ class SwiftProjectTaskRunnerTest : HeavyPlatformTestCase() {
     fun `test a failing build reports navigable errors`() {
         if (!toolchainAvailable()) return
         copyFixture("Broken")
-        val module = module("Broken", SwiftPackageLocator.SWIFT_MODULE_TYPE_ID, "Broken/Sources/Broken")
+        val module = module("Broken", SwiftPackageModuleType.ID, "Broken/Sources/Broken")
         val view = recordBuildEvents()
 
         val result = PlatformTestUtil.waitForPromise(ProjectTaskManager.getInstance(project).build(module), BUILD_TIMEOUT_MS)!!
@@ -227,7 +228,7 @@ class SwiftProjectTaskRunnerTest : HeavyPlatformTestCase() {
     fun `test rebuild cleans first`() {
         if (!toolchainAvailable()) return
         copyFixture("Utils")
-        val module = module("Utils", SwiftPackageLocator.SWIFT_MODULE_TYPE_ID, "Utils")
+        val module = module("Utils", SwiftPackageModuleType.ID, "Utils")
         val view = recordBuildEvents()
 
         val result = PlatformTestUtil.waitForPromise(ProjectTaskManager.getInstance(project).rebuild(module), BUILD_TIMEOUT_MS)!!
@@ -244,7 +245,7 @@ class SwiftProjectTaskRunnerTest : HeavyPlatformTestCase() {
     fun `test stop cancels the build`() {
         if (!toolchainAvailable()) return
         copyFixture("Greeter", "Utils")
-        val module = module("Greeter", SwiftPackageLocator.SWIFT_MODULE_TYPE_ID, "Greeter")
+        val module = module("Greeter", SwiftPackageModuleType.ID, "Greeter")
         val view = recordBuildEvents()
 
         val promise = ProjectTaskManager.getInstance(project).build(module)

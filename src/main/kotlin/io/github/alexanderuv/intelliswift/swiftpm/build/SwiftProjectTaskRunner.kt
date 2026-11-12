@@ -34,14 +34,28 @@ class SwiftProjectTaskRunner : ProjectTaskRunner() {
     }
 
     override fun run(project: Project, context: ProjectTaskContext, vararg tasks: ProjectTask): Promise<Result> {
-        val requests = ReadAction.computeBlocking<List<SwiftBuildRequest>, RuntimeException> { tasks.flatMap(::requestsFor) }
+        val requests = ReadAction.computeBlocking<List<SwiftBuildRequest>, RuntimeException> {
+            withoutCoveredDependencies(project, tasks.flatMap { requestsFor(project, it) })
+        }
         return SwiftBuildService.getInstance(project).build(requests)
     }
 
-    private fun requestsFor(task: ProjectTask): List<SwiftBuildRequest> = when (task) {
+    /**
+     * Drops builds of `path:` dependencies whose root package is built as a whole in the same run:
+     * the root's `swift build` builds them already, into its own `.build`.
+     */
+    private fun withoutCoveredDependencies(project: Project, requests: List<SwiftBuildRequest>): List<SwiftBuildRequest> {
+        val wholeRoots = requests.filter { it.scope.target == null }.map { it.scope.packageDir.normalize() }.toSet()
+        return requests.filterNot { request ->
+            SwiftPackageLocator.buildingRoot(project, request.scope.packageDir)?.let { it in wholeRoots } == true
+        }
+    }
+
+    private fun requestsFor(project: Project, task: ProjectTask): List<SwiftBuildRequest> = when (task) {
         is ModuleFilesBuildTask -> {
             // Compiling files builds their targets; it never cleans, even though the task is not incremental.
-            val scopes = task.files.mapNotNull(SwiftPackageLocator::scopeOf).ifEmpty { listOfNotNull(SwiftPackageLocator.scopeOf(task.module)) }
+            val scopes = task.files.mapNotNull { SwiftPackageLocator.scopeOf(project, it) }
+                .ifEmpty { listOfNotNull(SwiftPackageLocator.scopeOf(task.module)) }
             scopes.map { SwiftBuildRequest(it) }
         }
         is ModuleBuildTask -> listOfNotNull(SwiftPackageLocator.scopeOf(task.module)).map {
