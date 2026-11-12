@@ -6,6 +6,7 @@ out/
 *.iml
 .intellijPlatform/
 .DS_Store
+.claude/
 
 # SwiftPM (the oracle tool and the test fixture packages)
 .build/
