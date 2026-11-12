@@ -1,6 +1,9 @@
 package io.github.alexanderuv.intelliswift.swiftpm.project
 
 import com.intellij.execution.process.ProcessOutputType
+import com.intellij.icons.AllIcons
+import com.intellij.ide.projectView.ViewSettings
+import com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode
 import com.intellij.ide.trustedProjects.TrustedProjects
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.runReadActionBlocking
@@ -28,7 +31,11 @@ import com.intellij.openapi.roots.libraries.LibraryTablesRegistrar
 import kotlinx.coroutines.runBlocking
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiManager
 import com.intellij.testFramework.HeavyPlatformTestCase
+import com.intellij.ui.LayeredIcon
+import com.intellij.ui.icons.RowIcon
+import io.github.alexanderuv.intelliswift.lang.SwiftIcons
 import io.github.alexanderuv.intelliswift.swiftpm.build.SwiftBuildScope
 import io.github.alexanderuv.intelliswift.swiftpm.build.SwiftPackageLocator
 import io.github.alexanderuv.intelliswift.swiftpm.execution.SwiftPackageDescriptions
@@ -43,6 +50,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
+import javax.swing.Icon
 
 /**
  * Imports the fixture packages into a real IDE project: once by loading the `Greeter` package
@@ -290,6 +298,50 @@ class SwiftPmImportTest : HeavyPlatformTestCase() {
             assertTrue("checkout sources are library sources", index.isInLibrarySource(strings))
             assertFalse("checkouts are not project content", index.isInContent(strings))
             assertTrue(index.isInSourceContent(file(greeter.resolve("Sources/Greeter/Greeter.swift"))))
+        }
+    }
+
+    /**
+     * The Project view shows a package's directory as a module and a target's directory as the
+     * sources it holds. The tests load the Java plugin, whose directory icon provider shows any
+     * module content root, a target's directory too, with its module type's icon.
+     */
+    fun `test the project view shows packages as modules and targets as their source roots`() {
+        val greeter = importWithCheckout()
+        assertEquals(AllIcons.Nodes.Module, SwiftPackageModuleType.getInstance().icon)
+        runReadActionBlocking {
+            assertEquals(AllIcons.Nodes.Module, projectViewIcon(greeter))
+            for (target in listOf("Sources/Greeter", "Sources/greet", "Sources/CHelpers", "Plugins/Lint")) {
+                assertEquals(target, AllIcons.Modules.SourceRoot, projectViewIcon(greeter.resolve(target)))
+            }
+            assertEquals(AllIcons.Modules.TestRoot, projectViewIcon(greeter.resolve("Tests/GreeterTests")))
+
+            // The Swift logo is for Swift files; no directory of the package shows it.
+            val directories = Files.walk(greeter).use { paths ->
+                paths.filter { Files.isDirectory(it) && !greeter.relativize(it).startsWith(".build") }.toList()
+            }
+            assertTrue(directories.size > 6)
+            for (directory in directories) {
+                assertNotSame(directory.toString(), SwiftIcons.FILE, projectViewIcon(directory))
+            }
+        }
+    }
+
+    /**
+     * The icon the Project view shows for the directory at [path], without the layers (such as a
+     * read-only lock) icon providers may put on top of it.
+     */
+    private fun projectViewIcon(path: Path): Icon? {
+        val directory = PsiManager.getInstance(project).findDirectory(file(path)) ?: error("no directory $path")
+        val node = PsiDirectoryNode(project, directory, ViewSettings.DEFAULT)
+        node.update()
+        var icon = node.presentation.getIcon(false)
+        while (true) {
+            icon = when (icon) {
+                is RowIcon -> icon.getIcon(0)
+                is LayeredIcon -> icon.getIcon(0)
+                else -> return icon
+            }
         }
     }
 

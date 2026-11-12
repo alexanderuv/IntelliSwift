@@ -85,6 +85,9 @@
         <registryKey key="SWIFTPM.system.in.process" defaultValue="true"
                      description="Run the SwiftPM External System integration in the IDE process"/>
         <moduleType id="SWIFT_MODULE" implementationClass="io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPackageModuleType"/>
+        <!-- First, so a target directory shows as sources, not as a module: see the class. -->
+        <iconProvider id="swiftTargetDirectory" order="first"
+                      implementation="io.github.alexanderuv.intelliswift.swiftpm.project.SwiftTargetDirectoryIconProvider"/>
         <projectConfigurable parentId="build.tools" id="reference.settingsdialog.project.swiftpm" displayName="SwiftPM"
                              instance="io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmConfigurable"/>
         <externalSystemUnlinkedProjectAware
