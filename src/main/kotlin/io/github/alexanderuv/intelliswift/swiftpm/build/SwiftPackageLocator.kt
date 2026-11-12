@@ -12,7 +12,6 @@ import io.github.alexanderuv.intelliswift.swiftpm.model.SwiftPackage
 import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPackageModuleType
 import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPm
 import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmProjectModel
-import java.nio.file.Files
 import java.nio.file.Path
 
 /** What one `swift build` builds: the package in [packageDir], or only its [target]. */
@@ -74,27 +73,6 @@ object SwiftPackageLocator {
         val pkg = SwiftPmProjectModel.packageFor(project, file)
         if (pkg != null) return@computeBlocking SwiftBuildScope(Path.of(pkg.packagePath).normalize(), null)
         layoutScope(file)
-    }
-
-    /**
-     * The linked root package whose `swift build` also builds [packageDir], when [packageDir] is an
-     * editable (`path:`) dependency in that root's graph; `null` for roots and unknown packages.
-     */
-    fun buildingRoot(project: Project, packageDir: Path): Path? {
-        val dir = packageDir.normalize()
-        for (linked in SwiftPmProjectModel.linkedPackagePaths(project)) {
-            val root = Path.of(linked).normalize()
-            if (root == dir) return null
-            if (dir in SwiftPmProjectModel.editablePackageDirectories(project, linked)) return root
-        }
-        return null
-    }
-
-    /** Whether [scope] builds a test target, as the imported project or else SwiftPM's layout says. */
-    fun isTestTarget(project: Project, scope: SwiftBuildScope): Boolean {
-        val target = scope.target ?: return false
-        val module = SwiftPmProjectModel.moduleForTarget(project, scope.packageDir.toString(), target)
-        return module?.let { SwiftPmProjectModel.targetOf(it)?.kind?.isTest } ?: Files.isDirectory(scope.packageDir.resolve("Tests").resolve(target))
     }
 
     /** The nearest directory containing a `Package.swift`: [file] itself if it is one, or one above it. */

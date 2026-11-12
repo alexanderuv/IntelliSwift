@@ -34,23 +34,12 @@ class SwiftProjectTaskRunner : ProjectTaskRunner() {
     }
 
     override fun run(project: Project, context: ProjectTaskContext, vararg tasks: ProjectTask): Promise<Result> {
+        // Every module's package is built on its own, `path:` dependencies too: a root's `swift build`
+        // builds only the dependency targets the root's products use, into the root's `.build`.
         val requests = ReadAction.computeBlocking<List<SwiftBuildRequest>, RuntimeException> {
-            withoutCoveredDependencies(project, tasks.flatMap { requestsFor(project, it) })
+            tasks.flatMap { requestsFor(project, it) }
         }
         return SwiftBuildService.getInstance(project).build(requests)
-    }
-
-    /**
-     * Drops builds of `path:` dependencies whose root package is built as a whole in the same run:
-     * the root's `swift build` builds them already, into its own `.build`. It builds only their
-     * library targets, though, so builds of a dependency's tests stay.
-     */
-    internal fun withoutCoveredDependencies(project: Project, requests: List<SwiftBuildRequest>): List<SwiftBuildRequest> {
-        val wholeRoots = requests.filter { it.scope.target == null }.map { it.scope.packageDir.normalize() }.toSet()
-        return requests.filterNot { request ->
-            val covered = SwiftPackageLocator.buildingRoot(project, request.scope.packageDir)?.let { it in wholeRoots } == true
-            covered && !request.buildTests && !SwiftPackageLocator.isTestTarget(project, request.scope)
-        }
     }
 
     private fun requestsFor(project: Project, task: ProjectTask): List<SwiftBuildRequest> = when (task) {

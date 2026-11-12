@@ -13,12 +13,17 @@ import com.intellij.build.events.SkippedResult
 import com.intellij.build.events.StartBuildEvent
 import com.intellij.build.events.StartEvent
 import com.intellij.build.events.SuccessResult
+import com.intellij.ide.trustedProjects.TrustedProjects
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.externalSystem.ExternalSystemModulePropertyManager
 import com.intellij.openapi.externalSystem.model.ProjectSystemId
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.ModuleManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.ui.TestDialogManager
+import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.task.EmptyCompileScopeBuildTask
@@ -35,6 +40,7 @@ import io.github.alexanderuv.intelliswift.toolchain.SwiftToolchainSettings
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.io.path.CopyActionResult
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.copyToRecursively
@@ -48,6 +54,7 @@ class SwiftProjectTaskRunnerTest : HeavyPlatformTestCase() {
 
     override fun setUp() {
         super.setUp()
+        TrustedProjects.setProjectTrusted(project, true)
         root = createTempDirectoryWithSuffix("swift-build").toRealPath()
         for (file in listOf(
             "Pkg/Package.swift", "Pkg/Sources/Lib/Lib.swift", "Pkg/Tests/LibTests/LibTests.swift", "Pkg/Plugins/Lint/Lint.swift",
@@ -247,6 +254,59 @@ class SwiftProjectTaskRunnerTest : HeavyPlatformTestCase() {
         val clean = output.indexOf(" clean\n")
         val build = output.indexOf(" build --package-path")
         assertTrue(output, clean in 0..<build)
+    }
+
+    fun `test an untrusted project is built only once trusted`() {
+        val module = module("Pkg", SwiftPackageModuleType.ID, "Pkg")
+        val view = recordBuildEvents()
+        TrustedProjects.setProjectTrusted(project, false)
+        val asked = AtomicInteger()
+        TestDialogManager.setTestDialog({ asked.incrementAndGet(); Messages.NO }, testRootDisposable)
+
+        val result = PlatformTestUtil.waitForPromise(ProjectTaskManager.getInstance(project).build(module), BUILD_TIMEOUT_MS)!!
+
+        assertEquals(1, asked.get())
+        assertTrue(result.isAborted)
+        assertEmpty("nothing ran", view.events.toList())
+    }
+
+    fun `test the toolchain is checked in each package's directory`() {
+        if (SystemInfo.isWindows) return
+        // A swiftly-like proxy: the version follows the working directory's .swift-version.
+        val swift = root.resolve("bin/swift").also { it.parent.createDirectories() }
+        swift.writeText(
+            """
+            #!/bin/sh
+            if [ "$1" = "--version" ]; then
+              if [ -f .swift-version ]; then echo "Swift version $(cat .swift-version)"; else echo "Swift version 6.1"; fi
+            else
+              echo "ran swift $*"
+            fi
+            """.trimIndent() + "\n",
+        )
+        swift.toFile().setExecutable(true)
+        for (pkg in listOf("Old", "New")) root.resolve("$pkg/Package.swift").also { it.parent.createDirectories() }.writeText("")
+        root.resolve("Old/.swift-version").writeText("5.10")
+        val settings = SwiftToolchainSettings.getInstance()
+        val configured = settings.swiftPath
+        settings.swiftPath = swift.toString()
+        Disposer.register(testRootDisposable) { settings.swiftPath = configured }
+        val view = recordBuildEvents()
+
+        val modules = listOf("Old", "New").map { module(it, SwiftPackageModuleType.ID, it) }
+        val result = PlatformTestUtil.waitForPromise(ProjectTaskManager.getInstance(project).build(*modules.toTypedArray()), BUILD_TIMEOUT_MS)!!
+
+        val events = view.events.toList()
+        assertTrue(result.hasErrors())
+        val steps = events.filterIsInstance<FinishEvent>().filter { it !is FinishBuildEvent }.associate { it.message to it.result }
+        assertTrue("$steps", steps["Package Old"] is FailureResult)
+        assertTrue("$steps", steps["Package New"] is SuccessResult)
+        val errors = events.filterIsInstance<MessageEvent>().filter { it.kind == MessageEvent.Kind.ERROR }
+        assertEquals(events.joinToString("\n") { it.message }, 1, errors.size)
+        assertTrue(errors.single().description, "Swift 5.10 is too old" in errors.single().description.orEmpty())
+        val output = events.filterIsInstance<OutputBuildEvent>().joinToString("") { it.message }
+        assertTrue(output, "ran swift build --package-path ${root.resolve("New")}" in output)
+        assertFalse(output, "--package-path ${root.resolve("Old")}" in output)
     }
 
     fun `test stop cancels the build`() {

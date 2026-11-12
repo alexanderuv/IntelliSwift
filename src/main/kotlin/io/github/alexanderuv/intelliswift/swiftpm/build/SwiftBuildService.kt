@@ -23,6 +23,7 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.externalSystem.model.ExternalSystemException
+import com.intellij.openapi.externalSystem.service.project.trusted.ExternalSystemTrustedProjectDialog
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
@@ -31,6 +32,7 @@ import com.intellij.task.ProjectTaskRunner
 import io.github.alexanderuv.intelliswift.swiftpm.cli.SwiftBuildConfiguration
 import io.github.alexanderuv.intelliswift.swiftpm.cli.SwiftCommandRunner
 import io.github.alexanderuv.intelliswift.swiftpm.cli.SwiftPackageCommands
+import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPm
 import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmToolchains
 import io.github.alexanderuv.intelliswift.toolchain.SwiftToolchain
 import kotlinx.coroutines.CancellationException
@@ -74,7 +76,8 @@ data class SwiftBuildRequest(val scope: SwiftBuildScope, val buildTests: Boolean
 /**
  * Runs `swift build` for the IDE's build actions and reports it in the Build tool window: one
  * entry per build, a node per package or target built, the output, the diagnostics parsed by
- * [SwiftBuildOutputParser], and a Stop button.
+ * [SwiftBuildOutputParser], and a Stop button. In a project that is not trusted it asks to trust
+ * it first, as syncs do, and builds nothing if the user declines.
  */
 @Service(Service.Level.PROJECT)
 class SwiftBuildService(private val project: Project, private val scope: CoroutineScope) {
@@ -91,6 +94,11 @@ class SwiftBuildService(private val project: Project, private val scope: Corouti
         val title = titleOf(builds)
         scope.launch {
             try {
+                // `swift build` runs code from the packages: their manifests, and their build plugins.
+                if (!ExternalSystemTrustedProjectDialog.confirmLoadingUntrustedProjectAsync(project, SwiftPm.SYSTEM_ID)) {
+                    promise.setResult(SwiftBuildResult.ABORTED)
+                    return@launch
+                }
                 val result = withBackgroundProgress(project, title) {
                     withContext(Dispatchers.IO) {
                         SwiftBuildRun(project, builds, configuration, title, coroutineContext.job).run()
@@ -169,25 +177,14 @@ private class SwiftBuildRun(
         send(StartBuildEvent.builder("Running…", descriptor).build())
         var outcome = Outcome.SUCCESS
         try {
-            // The same checks as syncs and SwiftPM tasks: an executable, runnable, supported swift.
-            val toolchain = try {
-                SwiftPmToolchains.require()
-            } catch (e: ExternalSystemException) {
-                error(buildId, "No usable Swift toolchain", e.message.orEmpty())
-                null
-            }
-            if (toolchain == null) {
-                outcome = Outcome.FAILURE
-            } else {
-                for (build in builds) {
-                    when (build(toolchain, build)) {
-                        Outcome.SUCCESS -> {}
-                        // Keep building the other packages, so all their errors are reported.
-                        Outcome.FAILURE -> outcome = Outcome.FAILURE
-                        Outcome.CANCELLED -> {
-                            outcome = Outcome.CANCELLED
-                            break
-                        }
+            for (build in builds) {
+                when (build(build)) {
+                    Outcome.SUCCESS -> {}
+                    // Keep building the other packages, so all their errors are reported.
+                    Outcome.FAILURE -> outcome = Outcome.FAILURE
+                    Outcome.CANCELLED -> {
+                        outcome = Outcome.CANCELLED
+                        break
                     }
                 }
             }
@@ -207,7 +204,7 @@ private class SwiftBuildRun(
         }
     }
 
-    private fun build(toolchain: SwiftToolchain, build: SwiftBuildRequest): Outcome {
+    private fun build(build: SwiftBuildRequest): Outcome {
         if (cancelled) return Outcome.CANCELLED
         val stepId = Any()
         val stepTitle = buildString {
@@ -215,9 +212,32 @@ private class SwiftBuildRun(
             if (build.clean) append(", clean")
         }
         send(StartEvent.builder(stepId, stepTitle).withParentId(buildId).build())
+        val outcome = toolchainFor(build, stepId)?.let { build(it, build, stepId) } ?: Outcome.FAILURE
+        val result: EventResult = when (outcome) {
+            Outcome.SUCCESS -> SuccessResultImpl()
+            Outcome.FAILURE -> FailureResultImpl()
+            Outcome.CANCELLED -> SkippedResultImpl()
+        }
+        send(FinishEvent.builder(stepId, stepTitle, result).withParentId(buildId).build())
+        return outcome
+    }
+
+    /**
+     * The toolchain [build] runs with, after the same checks as syncs and SwiftPM tasks: an
+     * executable, runnable, supported `swift`. Checked per package, in its directory, since the
+     * toolchain may be a proxy that picks one by the directory (swiftly's `.swift-version`).
+     */
+    private fun toolchainFor(build: SwiftBuildRequest, stepId: Any): SwiftToolchain? = try {
+        SwiftPmToolchains.require(build.scope.packageDir)
+    } catch (e: ExternalSystemException) {
+        error(stepId, "No usable Swift toolchain", e.message.orEmpty())
+        null
+    }
+
+    private fun build(toolchain: SwiftToolchain, build: SwiftBuildRequest, stepId: Any): Outcome {
         val errorsBefore = errors.get()
         val commands = SwiftPackageCommands(toolchain, build.scope.packageDir)
-        val outcome = try {
+        return try {
             val cleanExit = if (build.clean) run(commands.clean(), stepId) else 0
             val exitCode = if (cleanExit == 0) {
                 run(commands.build(configuration, target = build.scope.target, buildTests = build.buildTests), stepId)
@@ -235,13 +255,6 @@ private class SwiftBuildRun(
             error(stepId, "Cannot run ${toolchain.swift}", e.message.orEmpty())
             Outcome.FAILURE
         }
-        val result: EventResult = when (outcome) {
-            Outcome.SUCCESS -> SuccessResultImpl()
-            Outcome.FAILURE -> FailureResultImpl()
-            Outcome.CANCELLED -> SkippedResultImpl()
-        }
-        send(FinishEvent.builder(stepId, stepTitle, result).withParentId(buildId).build())
-        return outcome
     }
 
     /** Runs [command], showing its output under [stepId] and parsing it; returns the exit code. */
