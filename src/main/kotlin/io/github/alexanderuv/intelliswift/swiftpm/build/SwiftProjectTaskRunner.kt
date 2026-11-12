@@ -27,7 +27,7 @@ class SwiftProjectTaskRunner : ProjectTaskRunner() {
             SwiftPackageLocator.isSwiftModule(module) ||
                 !SwiftPackageLocator.isOwnedByAnotherBuildSystem(module) &&
                 projectTask.files.isNotEmpty() &&
-                projectTask.files.all { SwiftPackageLocator.packageDirOf(it) != null }
+                projectTask.files.all(SwiftPackageLocator::isPackageFile)
         }
         is ModuleBuildTask -> SwiftPackageLocator.isSwiftModule(projectTask.module)
         else -> false
@@ -42,12 +42,14 @@ class SwiftProjectTaskRunner : ProjectTaskRunner() {
 
     /**
      * Drops builds of `path:` dependencies whose root package is built as a whole in the same run:
-     * the root's `swift build` builds them already, into its own `.build`.
+     * the root's `swift build` builds them already, into its own `.build`. It builds only their
+     * library targets, though, so builds of a dependency's tests stay.
      */
-    private fun withoutCoveredDependencies(project: Project, requests: List<SwiftBuildRequest>): List<SwiftBuildRequest> {
+    internal fun withoutCoveredDependencies(project: Project, requests: List<SwiftBuildRequest>): List<SwiftBuildRequest> {
         val wholeRoots = requests.filter { it.scope.target == null }.map { it.scope.packageDir.normalize() }.toSet()
         return requests.filterNot { request ->
-            SwiftPackageLocator.buildingRoot(project, request.scope.packageDir)?.let { it in wholeRoots } == true
+            val covered = SwiftPackageLocator.buildingRoot(project, request.scope.packageDir)?.let { it in wholeRoots } == true
+            covered && !request.buildTests && !SwiftPackageLocator.isTestTarget(project, request.scope)
         }
     }
 

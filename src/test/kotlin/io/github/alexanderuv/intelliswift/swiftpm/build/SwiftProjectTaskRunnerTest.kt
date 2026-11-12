@@ -52,6 +52,7 @@ class SwiftProjectTaskRunnerTest : HeavyPlatformTestCase() {
         for (file in listOf(
             "Pkg/Package.swift", "Pkg/Sources/Lib/Lib.swift", "Pkg/Tests/LibTests/LibTests.swift", "Pkg/Plugins/Lint/Lint.swift",
             "Outer/Inner/Package.swift", "Outer/Inner/Sources/Inner/Inner.swift", "Outer/Main.java", "plain/Main.java",
+            "Pkg/android/app/Main.java",
         )) {
             root.resolve(file).also { it.parent.createDirectories() }.writeText("")
         }
@@ -85,6 +86,8 @@ class SwiftProjectTaskRunnerTest : HeavyPlatformTestCase() {
         assertFalse(canRun(ModuleBuildTaskImpl(module("plain", JAVA, "plain"))))
         // A package below the content root does not make the module a Swift one.
         assertFalse(canRun(ModuleBuildTaskImpl(module("outer", JAVA, "Outer"))))
+        // Nor does one above it, outside SwiftPM's layout: another build's module in the same repository.
+        assertFalse(canRun(ModuleBuildTaskImpl(module("android", JAVA, "Pkg/android/app"))))
     }
 
     fun `test leaves modules of other build systems alone`() {
@@ -99,6 +102,10 @@ class SwiftProjectTaskRunnerTest : HeavyPlatformTestCase() {
         val outer = module("outer", JAVA, "Outer")
         assertTrue(canRun(ModuleFilesBuildTaskImpl(outer, false, vfs(root.resolve("Outer/Inner/Sources/Inner/Inner.swift")))))
         assertFalse(canRun(ModuleFilesBuildTaskImpl(outer, false, vfs(root.resolve("Outer/Main.java")))))
+        val plain = module("plain", JAVA, "plain")
+        assertFalse("a file below a Package.swift but outside its layout",
+            canRun(ModuleFilesBuildTaskImpl(plain, false, vfs(root.resolve("Pkg/android/app/Main.java")))))
+        assertTrue(canRun(ModuleFilesBuildTaskImpl(plain, false, vfs(root.resolve("Pkg/Package.swift")))))
     }
 
     fun `test leaves other tasks alone`() {

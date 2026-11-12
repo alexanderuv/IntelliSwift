@@ -29,8 +29,10 @@ import kotlinx.coroutines.runBlocking
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.testFramework.HeavyPlatformTestCase
+import io.github.alexanderuv.intelliswift.swiftpm.build.SwiftBuildRequest
 import io.github.alexanderuv.intelliswift.swiftpm.build.SwiftBuildScope
 import io.github.alexanderuv.intelliswift.swiftpm.build.SwiftPackageLocator
+import io.github.alexanderuv.intelliswift.swiftpm.build.SwiftProjectTaskRunner
 import io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmExecutionSettings
 import io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmProjectSettings
 import io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmSettings
@@ -224,6 +226,17 @@ class SwiftPmImportTest : HeavyPlatformTestCase() {
         // Utils is a `path:` dependency of Greeter, so building Greeter builds it.
         assertEquals(fixture.greeter, SwiftPackageLocator.buildingRoot(project, fixture.utils))
         assertNull(SwiftPackageLocator.buildingRoot(project, fixture.greeter))
+
+        // ...but only its library targets, so a build of Utils' tests stays.
+        val runner = SwiftProjectTaskRunner()
+        val greeter = SwiftBuildRequest(SwiftBuildScope(fixture.greeter, null), buildTests = true)
+        val utils = SwiftBuildRequest(SwiftBuildScope(fixture.utils, null))
+        val utilsTests = utils.copy(buildTests = true)
+        val runReadAction = { requests: List<SwiftBuildRequest> -> runReadActionBlocking { runner.withoutCoveredDependencies(project, requests) } }
+        assertEquals(listOf(greeter), runReadAction(listOf(greeter, utils)))
+        assertEquals(listOf(greeter, utilsTests), runReadAction(listOf(greeter, utilsTests)))
+        assertTrue(SwiftPackageLocator.isTestTarget(project, SwiftBuildScope(fixture.greeter, "GreeterTests")))
+        assertFalse(SwiftPackageLocator.isTestTarget(project, SwiftBuildScope(fixture.greeter, "Greeter")))
     }
 
     fun `test tasks run swift and stream its output`() {

@@ -12,6 +12,7 @@ import io.github.alexanderuv.intelliswift.swiftpm.model.SwiftPackage
 import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPackageModuleType
 import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPm
 import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmProjectModel
+import java.nio.file.Files
 import java.nio.file.Path
 
 /** What one `swift build` builds: the package in [packageDir], or only its [target]. */
@@ -30,14 +31,20 @@ data class SwiftBuildScope(val packageDir: Path, val target: String?) {
  * - the package of a file is the nearest directory, the file's own or above, with a `Package.swift`;
  * - a file under `<package>/Sources/<T>/` or `<package>/Tests/<T>/` (SwiftPM's standard layout)
  *   belongs to target `<T>`; anything else in the package builds the whole package;
- * - a module is located by its first content root that lies in a package.
+ * - a module is located by its first content root that is a package file ([isPackageFile]): the
+ *   package directory, or a directory of SwiftPM's layout in it. A module elsewhere below a
+ *   `Package.swift` is left to the other builds.
  */
 object SwiftPackageLocator {
+    /** Directories whose subdirectories are targets that `swift build --target` builds on their own. */
     private val TARGET_DIRECTORIES = setOf("Sources", "Tests")
+
+    /** Directories SwiftPM's layout puts targets in. */
+    private val LAYOUT_DIRECTORIES = TARGET_DIRECTORIES + "Plugins"
 
     /**
      * Whether `swift build` builds [module]: it is a SwiftPM module, or a module that no other build
-     * system owns with a content root inside a SwiftPM package.
+     * system owns with a content root that is a package file ([isPackageFile]).
      */
     fun isSwiftModule(module: Module): Boolean = ReadAction.computeBlocking<Boolean, RuntimeException> {
         if (module.isDisposed) return@computeBlocking false
@@ -83,6 +90,13 @@ object SwiftPackageLocator {
         return null
     }
 
+    /** Whether [scope] builds a test target, as the imported project or else SwiftPM's layout says. */
+    fun isTestTarget(project: Project, scope: SwiftBuildScope): Boolean {
+        val target = scope.target ?: return false
+        val module = SwiftPmProjectModel.moduleForTarget(project, scope.packageDir.toString(), target)
+        return module?.let { SwiftPmProjectModel.targetOf(it)?.kind?.isTest } ?: Files.isDirectory(scope.packageDir.resolve("Tests").resolve(target))
+    }
+
     /** The nearest directory containing a `Package.swift`: [file] itself if it is one, or one above it. */
     fun packageDirOf(file: VirtualFile): VirtualFile? {
         var dir: VirtualFile? = if (file.isDirectory) file else file.parent
@@ -98,15 +112,33 @@ object SwiftPackageLocator {
         return SwiftBuildScope(Path.of(pkg.packagePath).normalize(), SwiftPmProjectModel.targetOf(module)?.name)
     }
 
+    /**
+     * Whether SwiftPM's layout makes [file] part of a package's build, for files of modules that
+     * no build system imported: the package directory, its manifest, or anything under its
+     * `Sources`, `Tests` or `Plugins` directory. Other files below a `Package.swift`, such as an
+     * Android or Java module kept in the same repository, may belong to another build.
+     */
+    fun isPackageFile(file: VirtualFile): Boolean = ownedLayoutScope(file) != null
+
     /** The scope by SwiftPM's standard directory layout; see the class documentation. */
-    private fun layoutScope(file: VirtualFile): SwiftBuildScope? {
-        val packageDir = packageDirOf(file) ?: return null
-        val packagePath = packageDir.fileSystem.getNioPath(packageDir) ?: return null
-        val segments = VfsUtilCore.getRelativePath(file, packageDir, '/')?.split('/').orEmpty()
-        val target = segments.takeIf { it.size >= 2 && it[0] in TARGET_DIRECTORIES && it[1].isNotEmpty() }?.get(1)
-        return SwiftBuildScope(packagePath, target)
+    private fun layoutScope(file: VirtualFile): SwiftBuildScope? = layout(file)?.first
+
+    private fun ownedLayoutScope(file: VirtualFile): SwiftBuildScope? {
+        val (scope, segments) = layout(file) ?: return null
+        val owned = segments.isEmpty() || segments == listOf(SwiftPackage.MANIFEST) || segments.size >= 2 && segments[0] in LAYOUT_DIRECTORIES
+        return scope.takeIf { owned }
     }
 
+    /** The layout scope of [file], with its path segments relative to its package directory. */
+    private fun layout(file: VirtualFile): Pair<SwiftBuildScope, List<String>>? {
+        val packageDir = packageDirOf(file) ?: return null
+        val packagePath = packageDir.fileSystem.getNioPath(packageDir) ?: return null
+        val segments = VfsUtilCore.getRelativePath(file, packageDir, '/')?.split('/')?.filter { it.isNotEmpty() }.orEmpty()
+        val target = segments.takeIf { it.size >= 2 && it[0] in TARGET_DIRECTORIES }?.get(1)
+        return SwiftBuildScope(packagePath, target) to segments
+    }
+
+    /** A module that no build system imported is a Swift module when a content root is a package file. */
     private fun contentRootScope(module: Module): SwiftBuildScope? =
-        ModuleRootManager.getInstance(module).contentRoots.firstNotNullOfOrNull(::layoutScope)
+        ModuleRootManager.getInstance(module).contentRoots.firstNotNullOfOrNull(::ownedLayoutScope)
 }

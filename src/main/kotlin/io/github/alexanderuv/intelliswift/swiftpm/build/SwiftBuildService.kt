@@ -22,6 +22,7 @@ import com.intellij.execution.process.ProcessOutputType
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.externalSystem.model.ExternalSystemException
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
@@ -30,8 +31,8 @@ import com.intellij.task.ProjectTaskRunner
 import io.github.alexanderuv.intelliswift.swiftpm.cli.SwiftBuildConfiguration
 import io.github.alexanderuv.intelliswift.swiftpm.cli.SwiftCommandRunner
 import io.github.alexanderuv.intelliswift.swiftpm.cli.SwiftPackageCommands
+import io.github.alexanderuv.intelliswift.swiftpm.project.SwiftPmToolchains
 import io.github.alexanderuv.intelliswift.toolchain.SwiftToolchain
-import io.github.alexanderuv.intelliswift.toolchain.SwiftToolchainSettings
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,7 +44,6 @@ import org.jetbrains.concurrency.AsyncPromise
 import org.jetbrains.concurrency.Promise
 import java.io.OutputStream
 import java.nio.file.Path
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -169,12 +169,14 @@ private class SwiftBuildRun(
         send(StartBuildEvent.builder("Running…", descriptor).build())
         var outcome = Outcome.SUCCESS
         try {
-            val toolchain = SwiftToolchainSettings.toolchain()
+            // The same checks as syncs and SwiftPM tasks: an executable, runnable, supported swift.
+            val toolchain = try {
+                SwiftPmToolchains.require()
+            } catch (e: ExternalSystemException) {
+                error(buildId, "No usable Swift toolchain", e.message.orEmpty())
+                null
+            }
             if (toolchain == null) {
-                send(MessageEvent.builder("No Swift toolchain found", MessageEvent.Kind.ERROR).withParentId(buildId)
-                    .withGroup(SwiftBuildOutputParser.GROUP_SWIFTPM)
-                    .withDescription("Install Swift, or choose the swift executable in Settings | Languages & Frameworks | Swift.")
-                    .build())
                 outcome = Outcome.FAILURE
             } else {
                 for (build in builds) {
@@ -248,18 +250,18 @@ private class SwiftBuildRun(
         command.withEnvironment("NO_COLOR", "1")
         output("${command.commandLineString}\n", stepId, ProcessOutputType.SYSTEM)
         val reader = BuildOutputInstantReaderImpl(buildId, stepId, listener, listOf(SwiftBuildOutputParser()))
-        val atLineStart = AtomicBoolean(true)
         try {
             return SwiftCommandRunner.run(command, cancelled = { cancelled }) { text, outputType ->
                 if (!ProcessOutputType.isSystem(outputType) && text.isNotEmpty()) {
                     output(text, stepId, outputTypeOf(outputType))
                     reader.append(text)
-                    atLineStart.set(text.endsWith('\n'))
                 }
             }.exitCode
         } finally {
-            // The reader parses complete lines only, and closing it does not complete the last one.
-            if (!atLineStart.get()) reader.append('\n')
+            // The reader parses complete lines only, and closing it does not complete the last one,
+            // which either stream may have left open. When none is, this adds a blank line, which
+            // the parser skips.
+            reader.append('\n')
             // Waits until every line is parsed, so all messages precede the finish event. In 2026.2
             // `close()` does not wait; 2026.3 deprecates this in favour of a blocking `close()`.
             @Suppress("DEPRECATION")
