@@ -1,0 +1,15 @@
+Building for debugging...
+[0/6] Write sources
+[1/6] Write linkerror-entitlement.plist
+[2/6] Write swift-version--58304C5D6DBC2206.txt
+[4/8] Emitting module linkerror
+[5/8] Compiling linkerror main.swift
+[5/8] Write Objects.LinkFileList
+error: link command failed with exit code 1 (use -v to see invocation)
+Undefined symbols for architecture arm64:
+  "_intelliswift_missing_symbol", referenced from:
+      _linkerror_main in main.swift.o
+ld: symbol(s) not found for architecture arm64
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+[6/8] Linking linkerror
+warning: '--build-system native' has been deprecated and will be removed in a future release; please report an issue at https://github.com/swiftlang/swift-package-manager/issues if you are unable to adopt the default build system.
