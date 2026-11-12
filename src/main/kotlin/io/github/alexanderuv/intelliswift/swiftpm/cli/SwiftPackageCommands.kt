@@ -57,17 +57,21 @@ class SwiftPackageCommands(val toolchain: SwiftToolchain, val packagePath: Path)
         addParameters(extraArgs)
     }
 
-    /** `swift run [product] [-- args]`. */
+    /**
+     * `swift run [product] [args]`. SwiftPM passes everything after the product to the program
+     * unchanged, including options and a `--` (which therefore must not be added). Without a
+     * product the first argument would be taken for one, so [programArgs] need a [product].
+     */
     fun run(
         product: String?,
         configuration: SwiftBuildConfiguration = SwiftBuildConfiguration.DEBUG,
         programArgs: List<String> = emptyList(),
         extraArgs: List<String> = emptyList(),
-    ): GeneralCommandLine = swift("run", "-c", configuration.cli).apply {
-        addParameters(extraArgs)
-        product?.let { addParameter(it) }
-        if (programArgs.isNotEmpty()) {
-            addParameter("--")
+    ): GeneralCommandLine {
+        require(product != null || programArgs.isEmpty()) { "Program arguments need an executable product" }
+        return swift("run", "-c", configuration.cli).apply {
+            addParameters(extraArgs)
+            product?.let { addParameter(it) }
             addParameters(programArgs)
         }
     }
