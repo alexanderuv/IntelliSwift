@@ -16,15 +16,17 @@ class SwiftCommandException(message: String, val output: ProcessOutput? = null) 
 object SwiftCommandRunner {
 
     /**
-     * Runs [command] and returns its output, whatever the exit code. [cancelled] is polled while
-     * the process runs; when it returns true the process is destroyed and
-     * [ProcessCanceledException] is thrown. [onOutput] receives output as it arrives.
+     * Runs [command] and returns its output, whatever the exit code. [cancelled] is checked before
+     * the process starts and polled while it runs; when it returns true the process is destroyed
+     * (or never started) and [ProcessCanceledException] is thrown. [onOutput] receives output as
+     * it arrives.
      */
     fun run(
         command: GeneralCommandLine,
         cancelled: () -> Boolean = { false },
         onOutput: ((text: String, outputType: Key<*>) -> Unit)? = null,
     ): ProcessOutput {
+        if (cancelled()) throw ProcessCanceledException()
         val handler = OSProcessHandler(command)
         val capture = CapturingProcessAdapter()
         handler.addProcessListener(capture)

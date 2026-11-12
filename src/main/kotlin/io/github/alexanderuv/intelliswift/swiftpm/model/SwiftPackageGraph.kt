@@ -12,9 +12,11 @@ class SwiftPackageGraph(
     /** Every package of the graph, including [root], by identity. */
     val packages: Map<String, SwiftPackage>,
 ) {
+    /** The dependency tree's nodes, each identity once, by identity. */
+    private val nodes: Map<String, SwiftResolvedPackage> = resolved.flatten().associateBy { it.identity }
+
     /** All packages except [root], in dependency-tree order. */
-    val dependencies: List<SwiftPackage>
-        get() = resolved.flatten().drop(1).mapNotNull { packages[it.identity] }
+    val dependencies: List<SwiftPackage> = nodes.values.drop(1).mapNotNull { packages[it.identity] }
 
     /**
      * Whether [pkg] is edited in place: the root, a `path:` dependency, or a package put in edit mode
@@ -23,11 +25,12 @@ class SwiftPackageGraph(
     fun isEditable(pkg: SwiftPackage): Boolean =
         pkg.identity == root.identity || !pkg.path.normalize().startsWith(root.path.resolve(SwiftPackage.BUILD_DIR).normalize())
 
+    /** [pkg]'s node in the dependency tree: its resolved version, URL and dependencies. */
+    fun resolvedNode(pkg: SwiftPackage): SwiftResolvedPackage? = nodes[pkg.identity]
+
     /** The packages [pkg] depends on directly. */
-    fun directDependencies(pkg: SwiftPackage): List<SwiftPackage> {
-        val node = resolved.flatten().firstOrNull { it.identity == pkg.identity } ?: return emptyList()
-        return node.dependencies.mapNotNull { packages[it.identity] }
-    }
+    fun directDependencies(pkg: SwiftPackage): List<SwiftPackage> =
+        resolvedNode(pkg)?.dependencies.orEmpty().mapNotNull { packages[it.identity] }
 
     /**
      * The package and product a product dependency of a target of [from] refers to. A dependency

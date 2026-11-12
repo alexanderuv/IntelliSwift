@@ -6,6 +6,7 @@ import com.intellij.openapi.util.SystemInfo
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import kotlin.io.path.absolute
 import kotlin.io.path.getLastModifiedTime
 import kotlin.io.path.isExecutable
@@ -30,16 +31,24 @@ class SwiftToolchain(swift: Path) {
     override fun hashCode(): Int = swift.hashCode()
     override fun toString(): String = "SwiftToolchain($swift)"
 
+    /**
+     * Avoids running `swift --version` for every use within one action (a sync, a test run).
+     * Entries expire because the executable is often a proxy whose file never changes while the
+     * toolchain behind it does: swiftly's `swift` after `swiftly use`, and the `/usr/bin/swift`
+     * shim after `xcode-select -s`. Failures are not cached, so a toolchain that could not run
+     * (say, before the Xcode license was accepted) is retried on the next use.
+     */
     private object VersionCache {
-        private class Entry(val modified: Long, val version: SwiftVersion?)
+        private class Entry(val modified: Long, val queriedAt: Long, val version: SwiftVersion)
 
         private val entries = ConcurrentHashMap<Path, Entry>()
 
         fun versionOf(swift: Path): SwiftVersion? {
             val modified = runCatching { swift.getLastModifiedTime().toMillis() }.getOrNull() ?: return null
-            entries[swift]?.takeIf { it.modified == modified }?.let { return it.version }
+            val now = System.nanoTime()
+            entries[swift]?.takeIf { it.modified == modified && now - it.queriedAt < TTL_NANOS }?.let { return it.version }
             val version = query(swift)
-            entries[swift] = Entry(modified, version)
+            if (version == null) entries.remove(swift) else entries[swift] = Entry(modified, now, version)
             return version
         }
 
@@ -55,6 +64,7 @@ class SwiftToolchain(swift: Path) {
         }
 
         private const val VERSION_TIMEOUT_MS = 15_000
+        private val TTL_NANOS = TimeUnit.SECONDS.toNanos(30)
     }
 }
 

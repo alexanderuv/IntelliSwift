@@ -20,25 +20,23 @@ class SwiftPackageCommands(val toolchain: SwiftToolchain, val packagePath: Path)
         toolchain.command(subcommand, "--package-path", packagePath.toString(), *args)
             .withWorkingDirectory(packagePath)
 
-    fun describe(): GeneralCommandLine = toolchain.command("package", "--package-path", packagePath.toString(), "describe", "--type", "json")
-        .withWorkingDirectory(packagePath)
-
-    fun dumpPackage(): GeneralCommandLine = toolchain.command("package", "--package-path", packagePath.toString(), "dump-package")
-        .withWorkingDirectory(packagePath)
-
-    /** Resolves dependencies if needed and prints the dependency tree. */
-    fun showDependencies(): GeneralCommandLine =
-        toolchain.command("package", "--package-path", packagePath.toString(), "show-dependencies", "--format", "json")
+    /** `swift package <subcommand>`; `--package-path` is an option of `swift package` itself. */
+    private fun pkg(subcommand: String, vararg args: String): GeneralCommandLine =
+        toolchain.command("package", "--package-path", packagePath.toString(), subcommand, *args)
             .withWorkingDirectory(packagePath)
 
-    fun resolve(): GeneralCommandLine = toolchain.command("package", "--package-path", packagePath.toString(), "resolve")
-        .withWorkingDirectory(packagePath)
+    fun describe(): GeneralCommandLine = pkg("describe", "--type", "json")
 
-    fun update(): GeneralCommandLine = toolchain.command("package", "--package-path", packagePath.toString(), "update")
-        .withWorkingDirectory(packagePath)
+    fun dumpPackage(): GeneralCommandLine = pkg("dump-package")
 
-    fun clean(): GeneralCommandLine = toolchain.command("package", "--package-path", packagePath.toString(), "clean")
-        .withWorkingDirectory(packagePath)
+    /** Resolves dependencies if needed and prints the dependency tree. */
+    fun showDependencies(): GeneralCommandLine = pkg("show-dependencies", "--format", "json")
+
+    fun resolve(): GeneralCommandLine = pkg("resolve")
+
+    fun update(): GeneralCommandLine = pkg("update")
+
+    fun clean(): GeneralCommandLine = pkg("clean")
 
     /**
      * `swift build`. With [target] or [product] only that is built; [buildTests] also builds the

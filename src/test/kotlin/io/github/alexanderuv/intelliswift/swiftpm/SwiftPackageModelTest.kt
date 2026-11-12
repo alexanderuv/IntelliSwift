@@ -68,6 +68,15 @@ class SwiftPackageModelTest {
         assertFalse(graph.isEditable(checkout))
     }
 
+    @Test fun `warnings before the JSON are skipped, braces included`() {
+        val graph = SwiftPackageGraph.build(json("Greeter.dependencies.json")) { node ->
+            val name = node.path.fileName.toString()
+            "warning: '$name': found 1 file(s) which are unhandled: /FIXTURE/{template}.txt\n" + json("$name.describe.json") to json("$name.dump.json")
+        }
+        assertEquals("Greeter", graph.root.name)
+        assertEquals(listOf("utils"), graph.dependencies.map { it.identity })
+    }
+
     @Test fun `swift versions parse from swift --version`() {
         assertEquals(SwiftVersion(6, 1, 2), SwiftVersion.parseVersionOutput("swift-driver version: 1.120.5 Apple Swift version 6.1.2 (swiftlang-6.1.2.1.2 clang-1700.0.13.5)"))
         val dev = SwiftVersion.parseVersionOutput("Swift version 6.2-dev (LLVM abc, Swift def)\nTarget: x86_64-unknown-linux-gnu")!!

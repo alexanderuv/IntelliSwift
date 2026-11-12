@@ -8,11 +8,12 @@ import io.github.alexanderuv.intelliswift.toolchain.SwiftToolchain
 import java.nio.file.Path
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Future
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Loads a [SwiftPackageGraph] by running SwiftPM: `show-dependencies` for the root (which
  * resolves dependencies first if needed), then `describe` and `dump-package` for every package,
- * in parallel.
+ * a few packages at a time.
  */
 class SwiftPackageGraphLoader(private val toolchain: SwiftToolchain) {
 
@@ -23,18 +24,24 @@ class SwiftPackageGraphLoader(private val toolchain: SwiftToolchain) {
     ): SwiftPackageGraph {
         val dependencies = SwiftCommandRunner.runChecked(SwiftPackageCommands(toolchain, root).showDependencies(), cancelled, onOutput)
         val resolved = SwiftPackageJson.parseDependencies(dependencies)
-        val executor = AppExecutorUtil.getAppExecutorService()
+        // Bounded: each package is two swift processes, and all of them share SwiftPM's manifest cache.
+        val executor = AppExecutorUtil.createBoundedApplicationPoolExecutor("SwiftPM package loader", PARALLELISM)
+        // Set once the load ends, by success, failure or cancellation, so that commands still
+        // queued or running stop: interrupting their threads would not end the swift processes.
+        val finished = AtomicBoolean()
+        val stop = { finished.get() || cancelled() }
         val futures: Map<String, Future<Pair<String, String?>>> = resolved.flatten().associate { node ->
             node.identity to executor.submit<Pair<String, String?>> {
                 val commands = SwiftPackageCommands(toolchain, node.path)
-                SwiftCommandRunner.runChecked(commands.describe(), cancelled) to
-                    SwiftCommandRunner.runChecked(commands.dumpPackage(), cancelled)
+                SwiftCommandRunner.runChecked(commands.describe(), stop) to
+                    SwiftCommandRunner.runChecked(commands.dumpPackage(), stop)
             }
         }
         try {
             return SwiftPackageGraph.build(dependencies) { node -> unwrap(futures.getValue(node.identity)) }
         } finally {
-            futures.values.forEach { it.cancel(true) }
+            finished.set(true)
+            executor.shutdown()
         }
     }
 
@@ -42,5 +49,9 @@ class SwiftPackageGraphLoader(private val toolchain: SwiftToolchain) {
         future.get()
     } catch (e: ExecutionException) {
         throw e.cause ?: e
+    }
+
+    private companion object {
+        val PARALLELISM = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
     }
 }

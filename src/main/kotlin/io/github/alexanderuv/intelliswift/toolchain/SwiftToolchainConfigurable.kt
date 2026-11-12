@@ -11,11 +11,13 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicInteger
 
 /** *Settings | Languages & Frameworks | Swift*: the toolchain used for SwiftPM. */
 class SwiftToolchainConfigurable : BoundSearchableConfigurable("Swift", "intelliswift.toolchain") {
     private val settings get() = SwiftToolchainSettings.getInstance()
     private val status = JBLabel()
+    private val requests = AtomicInteger()
 
     override fun createPanel(): DialogPanel {
         lateinit var field: TextFieldWithBrowseButton
@@ -39,11 +41,15 @@ class SwiftToolchainConfigurable : BoundSearchableConfigurable("Swift", "intelli
         return panel
     }
 
-    /** Shows which toolchain [path] (or detection, for an empty path) resolves to, computed off the UI thread. */
+    /**
+     * Shows which toolchain [path] (or detection, for an empty path) resolves to, computed off the
+     * UI thread. Each edit supersedes the checks still running, which may finish in any order.
+     */
     private fun describe(path: String) {
+        val request = requests.incrementAndGet()
         status.text = "Checking…"
         ApplicationManager.getApplication().executeOnPooledThread {
-            val toolchain = if (path.isBlank()) settings.detectedToolchains(refresh = true).firstOrNull() else SwiftToolchain(Path.of(path.trim()))
+            val toolchain = if (path.isBlank()) settings.defaultToolchain(refresh = true) else SwiftToolchain(Path.of(path.trim()))
             val text = when {
                 toolchain == null -> "No Swift toolchain found."
                 !toolchain.isValid -> "Not an executable: ${toolchain.swift}"
@@ -55,7 +61,7 @@ class SwiftToolchainConfigurable : BoundSearchableConfigurable("Swift", "intelli
                     }
                 }
             }
-            ApplicationManager.getApplication().invokeLater({ status.text = text }, ModalityState.any())
+            ApplicationManager.getApplication().invokeLater({ if (request == requests.get()) status.text = text }, ModalityState.any())
         }
     }
 }

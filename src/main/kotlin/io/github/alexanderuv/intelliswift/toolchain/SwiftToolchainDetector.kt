@@ -16,10 +16,16 @@ import kotlin.io.path.listDirectoryEntries
  * swift.org toolchains on macOS, Linux and Windows. The first entry is the preferred one.
  */
 object SwiftToolchainDetector {
-    fun detect(): List<SwiftToolchain> =
-        candidates().map { SwiftToolchain(it) }.distinct().filter { it.isValid }.toList()
+    fun detect(): List<SwiftToolchain> {
+        // Without Xcode or the Command Line Tools, /usr/bin/swift and xcrun are stubs that open
+        // the system's "install developer tools" dialog when run, so neither is a toolchain.
+        val appleShims = SystemInfo.isMac && !macDeveloperToolsInstalled()
+        return candidates(useXcrun = SystemInfo.isMac && !appleShims)
+            .filterNot { appleShims && it == MAC_SHIM }
+            .map { SwiftToolchain(it) }.distinct().filter { it.isValid }.toList()
+    }
 
-    private fun candidates(): Sequence<Path> = sequence {
+    private fun candidates(useXcrun: Boolean): Sequence<Path> = sequence {
         val exe = if (SystemInfo.isWindows) "swift.exe" else "swift"
         val home = Path.of(System.getProperty("user.home"))
 
@@ -29,15 +35,15 @@ object SwiftToolchainDetector {
         yield(home.resolve(".swiftly/bin/$exe"))
         if (SystemInfo.isMac) {
             yield(home.resolve("Library/Application Support/swiftly/bin/swift"))
-            xcrunSwift()?.let { yield(it) }
+            if (useXcrun) xcrunSwift()?.let { yield(it) }
             for (dir in listOf(home.resolve("Library/Developer/Toolchains"), Path.of("/Library/Developer/Toolchains"))) {
                 yieldAll(children(dir).filter { it.fileName.toString().endsWith(".xctoolchain") }.map { it.resolve("usr/bin/swift") })
             }
-            yield(Path.of("/usr/bin/swift"))
+            yield(MAC_SHIM)
         } else if (SystemInfo.isWindows) {
             System.getenv("LOCALAPPDATA")?.let { local ->
                 val toolchains = Path.of(local, "Programs", "Swift", "Toolchains")
-                yieldAll(children(toolchains).sortedDescending().map { it.resolve("usr/bin/swift.exe") })
+                yieldAll(newestFirst(children(toolchains)).map { it.resolve("usr/bin/swift.exe") })
             }
         } else {
             yield(Path.of("/usr/bin/swift"))
@@ -61,6 +67,33 @@ object SwiftToolchainDetector {
     private fun children(dir: Path): List<Path> =
         if (dir.isDirectory()) runCatching { dir.listDirectoryEntries() }.getOrDefault(emptyList()) else emptyList()
 
+    /**
+     * Toolchain directories named by version (`6.1.0+Asserts`, `6.10.0+Asserts`), newest first.
+     * The numeric components are compared as numbers, so 6.10 is newer than 6.9.
+     */
+    internal fun newestFirst(dirs: List<Path>): List<Path> {
+        fun components(dir: Path): List<Int> =
+            VERSION_PREFIX.find(dir.fileName.toString())?.value?.split('.')?.map { it.toIntOrNull() ?: Int.MAX_VALUE }.orEmpty()
+        val byVersion = Comparator<Path> { a, b ->
+            val (x, y) = components(a) to components(b)
+            (0 until maxOf(x.size, y.size)).asSequence()
+                .map { (x.getOrNull(it) ?: 0).compareTo(y.getOrNull(it) ?: 0) }
+                .firstOrNull { it != 0 } ?: 0
+        }
+        return dirs.sortedWith(byVersion.thenBy { it.fileName.toString() }).reversed()
+    }
+
+    /** Whether Xcode or the Command Line Tools are installed; `xcode-select -p` never prompts. */
+    private fun macDeveloperToolsInstalled(): Boolean {
+        val xcodeSelect = Path.of("/usr/bin/xcode-select")
+        if (!Files.isRegularFile(xcodeSelect)) return false
+        val output = runCatching {
+            CapturingProcessHandler(GeneralCommandLine(xcodeSelect.toString(), "-p")).runProcess(10_000)
+        }.getOrNull() ?: return false
+        if (output.isTimeout || output.exitCode != 0) return false
+        return output.stdout.trim().takeIf { it.isNotEmpty() }?.let { Files.isDirectory(Path.of(it)) } == true
+    }
+
     private fun xcrunSwift(): Path? {
         val xcrun = Path.of("/usr/bin/xcrun")
         if (!Files.isRegularFile(xcrun)) return null
@@ -70,4 +103,9 @@ object SwiftToolchainDetector {
         if (output.isTimeout || output.exitCode != 0) return null
         return output.stdout.trim().takeIf { it.isNotEmpty() }?.let { Path.of(it) }
     }
+
+    /** macOS's `swift`, which runs the selected Xcode's or Command Line Tools' toolchain. */
+    private val MAC_SHIM: Path = Path.of("/usr/bin/swift")
+
+    private val VERSION_PREFIX = Regex("""^\d+(\.\d+)*""")
 }

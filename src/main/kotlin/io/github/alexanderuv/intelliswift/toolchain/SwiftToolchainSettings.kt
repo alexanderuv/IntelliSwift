@@ -34,14 +34,29 @@ class SwiftToolchainSettings : SimplePersistentStateComponent<SwiftToolchainSett
         return SwiftToolchainDetector.detect().also { detected = it }
     }
 
-    /** The configured toolchain, or the first detected one. Call off the UI thread. */
+    /** The configured toolchain, or the [defaultToolchain]. Call off the UI thread. */
     fun toolchain(): SwiftToolchain? =
-        swiftPath?.let { SwiftToolchain(Path.of(it)) } ?: detectedToolchains().firstOrNull()
+        swiftPath?.let { SwiftToolchain(Path.of(it)) } ?: defaultToolchain()
+
+    /**
+     * The toolchain used when none is configured: the first detected one that is Swift
+     * [SwiftVersion.MINIMUM] or later. Runs `swift --version`, so call it off the UI thread.
+     */
+    fun defaultToolchain(refresh: Boolean = false): SwiftToolchain? =
+        preferredToolchain(detectedToolchains(refresh)) { it.version }
 
     companion object {
         fun getInstance(): SwiftToolchainSettings = service()
 
         /** The toolchain to run SwiftPM with, or `null` if none is configured or installed. */
         fun toolchain(): SwiftToolchain? = getInstance().toolchain()
+
+        /**
+         * The first of [toolchains], in detection order, that is a supported version. When none
+         * is, the first one, so that callers report its version as too old rather than finding
+         * no toolchain at all.
+         */
+        internal fun preferredToolchain(toolchains: List<SwiftToolchain>, versionOf: (SwiftToolchain) -> SwiftVersion?): SwiftToolchain? =
+            toolchains.firstOrNull { versionOf(it)?.let { version -> version >= SwiftVersion.MINIMUM } == true } ?: toolchains.firstOrNull()
     }
 }

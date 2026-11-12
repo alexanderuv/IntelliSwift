@@ -84,9 +84,9 @@ object SwiftPackageJson {
         }.toMap()
 
     private fun parseObject(text: String, command: String): JsonObject {
-        // SwiftPM may print warnings before the JSON document.
-        val start = text.indexOf('{')
-        if (start < 0) throw SwiftPackageJsonException("$command printed no JSON")
+        // SwiftPM may print warnings, which can contain braces, before the JSON document; the
+        // document starts on a line of its own.
+        val start = JSON_START.find(text)?.range?.first ?: throw SwiftPackageJsonException("$command printed no JSON")
         val element = try {
             JsonParser.parseString(text.substring(start))
         } catch (e: Exception) {
@@ -108,4 +108,6 @@ object SwiftPackageJson {
 
     private fun <R> JsonArray.mapObjects(transform: (JsonObject) -> R): List<R> =
         filter { it.isJsonObject }.map { transform(it.asJsonObject) }
+
+    private val JSON_START = Regex("""(?m)^\{""")
 }
