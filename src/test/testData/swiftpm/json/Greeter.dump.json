@@ -1,0 +1,208 @@
+{
+  "cLanguageStandard" : null,
+  "cxxLanguageStandard" : null,
+  "defaultLocalization" : null,
+  "dependencies" : [
+    {
+      "fileSystem" : [
+        {
+          "identity" : "utils",
+          "path" : "/FIXTURE/Utils",
+          "productFilter" : null,
+          "traits" : [
+            {
+              "name" : "default"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "name" : "Greeter",
+  "packageKind" : {
+    "root" : [
+      "/FIXTURE/Greeter"
+    ]
+  },
+  "pkgConfig" : null,
+  "platforms" : [
+    {
+      "options" : [
+
+      ],
+      "platformName" : "macos",
+      "version" : "13.0"
+    }
+  ],
+  "products" : [
+    {
+      "name" : "Greeter",
+      "settings" : [
+
+      ],
+      "targets" : [
+        "Greeter"
+      ],
+      "type" : {
+        "library" : [
+          "automatic"
+        ]
+      }
+    },
+    {
+      "name" : "greet",
+      "settings" : [
+
+      ],
+      "targets" : [
+        "greet"
+      ],
+      "type" : {
+        "executable" : null
+      }
+    },
+    {
+      "name" : "Lint",
+      "settings" : [
+
+      ],
+      "targets" : [
+        "Lint"
+      ],
+      "type" : {
+        "plugin" : null
+      }
+    }
+  ],
+  "providers" : null,
+  "swiftLanguageVersions" : null,
+  "targets" : [
+    {
+      "dependencies" : [
+
+      ],
+      "exclude" : [
+
+      ],
+      "name" : "CHelpers",
+      "packageAccess" : true,
+      "resources" : [
+
+      ],
+      "settings" : [
+
+      ],
+      "type" : "regular"
+    },
+    {
+      "dependencies" : [
+        {
+          "byName" : [
+            "CHelpers",
+            null
+          ]
+        },
+        {
+          "product" : [
+            "Utils",
+            "Utils",
+            null,
+            null
+          ]
+        }
+      ],
+      "exclude" : [
+
+      ],
+      "name" : "Greeter",
+      "packageAccess" : true,
+      "resources" : [
+
+      ],
+      "settings" : [
+
+      ],
+      "type" : "regular"
+    },
+    {
+      "dependencies" : [
+        {
+          "byName" : [
+            "Greeter",
+            null
+          ]
+        }
+      ],
+      "exclude" : [
+
+      ],
+      "name" : "greet",
+      "packageAccess" : true,
+      "resources" : [
+
+      ],
+      "settings" : [
+
+      ],
+      "type" : "executable"
+    },
+    {
+      "dependencies" : [
+        {
+          "byName" : [
+            "Greeter",
+            null
+          ]
+        }
+      ],
+      "exclude" : [
+
+      ],
+      "name" : "GreeterTests",
+      "packageAccess" : true,
+      "resources" : [
+
+      ],
+      "settings" : [
+
+      ],
+      "type" : "test"
+    },
+    {
+      "dependencies" : [
+
+      ],
+      "exclude" : [
+
+      ],
+      "name" : "Lint",
+      "packageAccess" : true,
+      "pluginCapability" : {
+        "command" : [
+          {
+            "custom" : {
+              "description" : "Lint the package",
+              "verb" : "lint"
+            }
+          },
+          [
+
+          ]
+        ]
+      },
+      "resources" : [
+
+      ],
+      "settings" : [
+
+      ],
+      "type" : "plugin"
+    }
+  ],
+  "toolsVersion" : {
+    "_version" : "6.0.0"
+  },
+  "traits" : [
+
+  ]
+}

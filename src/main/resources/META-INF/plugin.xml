@@ -34,5 +34,9 @@
         <lang.findUsagesProvider language="Swift"
                                  implementationClass="io.github.alexanderuv.intelliswift.editor.SwiftFindUsagesProvider"/>
         <lang.namesValidator language="Swift" implementationClass="io.github.alexanderuv.intelliswift.editor.SwiftNamesValidator"/>
+
+        <!-- Toolchain -->
+        <applicationConfigurable parentId="language" id="intelliswift.toolchain" displayName="Swift"
+                                 instance="io.github.alexanderuv.intelliswift.toolchain.SwiftToolchainConfigurable"/>
     </extensions>
 </idea-plugin>
