@@ -44,7 +44,7 @@ class SwiftPmManager :
     override fun getLocalSettingsProvider(): Function<Project, SwiftPmLocalSettings> = Function { SwiftPmLocalSettings.getInstance(it) }
 
     override fun getExecutionSettingsProvider(): Function<Pair<Project, String>, SwiftPmExecutionSettings> =
-        Function { SwiftPmExecutionSettings() }
+        Function { projectAndPath -> SwiftPmExecutionSettings().apply { ideProjectPath = projectAndPath.first.basePath } }
 
     override fun getProjectResolverClass(): Class<SwiftPmProjectResolver> = SwiftPmProjectResolver::class.java
 
@@ -59,7 +59,7 @@ class SwiftPmManager :
 
     override fun getAffectedExternalProjectPath(changedFileOrDirPath: String, project: Project): String? {
         val changed = Path.of(changedFileOrDirPath).toAbsolutePath().normalize()
-        if (changed.fileName?.toString() !in SwiftPm.SETTINGS_FILE_NAMES) return null
+        if (changed.fileName?.toString()?.let(SwiftPm::isSettingsFile) != true) return null
         val directory = changed.parent ?: return null
         return SwiftPmProjectModel.linkedPackagePaths(project).firstOrNull { linked ->
             directory in SwiftPmProjectModel.editablePackageDirectories(project, linked)
@@ -67,9 +67,7 @@ class SwiftPmManager :
     }
 
     override fun getAffectedExternalProjectFilePaths(externalProjectPath: String, project: Project): List<Path> =
-        SwiftPmProjectModel.editablePackageDirectories(project, externalProjectPath).flatMap { directory ->
-            SwiftPm.SETTINGS_FILE_NAMES.map(directory::resolve)
-        }
+        SwiftPmProjectModel.editablePackageDirectories(project, externalProjectPath).flatMap(SwiftPm::settingsFiles)
 
     // ExternalSystemConfigurableAware
 

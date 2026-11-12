@@ -104,9 +104,13 @@ class SwiftPmLocalSettings(project: Project) :
 
 /**
  * What a SwiftPM sync or task runs with. The toolchain comes from the application-wide Swift
- * settings, so beyond the inherited environment and arguments there is nothing to add yet.
+ * settings; beyond the inherited environment and arguments, a sync needs to know where the IDE
+ * project keeps its files.
  */
 class SwiftPmExecutionSettings : ExternalSystemExecutionSettings() {
+    /** The IDE project's directory, where the imported modules' `.iml` files go; `null` if it has none. */
+    var ideProjectPath: String? = null
+
     companion object {
         private const val serialVersionUID = 1L
     }

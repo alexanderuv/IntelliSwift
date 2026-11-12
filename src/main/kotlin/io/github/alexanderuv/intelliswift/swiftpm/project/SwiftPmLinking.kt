@@ -7,6 +7,7 @@ import com.intellij.openapi.externalSystem.autolink.ExternalSystemProjectLinkLis
 import com.intellij.openapi.externalSystem.autolink.ExternalSystemUnlinkedProjectAware
 import com.intellij.openapi.externalSystem.importing.AbstractOpenProjectProvider
 import com.intellij.openapi.externalSystem.importing.ImportSpecBuilder
+import com.intellij.openapi.externalSystem.model.ProjectKeys
 import com.intellij.openapi.externalSystem.model.ProjectSystemId
 import com.intellij.openapi.externalSystem.service.project.manage.ExternalProjectsManagerImpl
 import com.intellij.openapi.externalSystem.service.project.trusted.ExternalSystemTrustedProjectDialog
@@ -49,24 +50,45 @@ class SwiftPmOpenProjectProvider : AbstractOpenProjectProvider() {
      * Unlinks the package at [externalProjectPath]: forgets its settings and imported data, and
      * removes its modules and the libraries no other module uses. This is what the External System
      * view's *Unlink* does; its implementation is internal API, hence this public-API version.
+     *
+     * A package's modules can belong to two linked roots at once: a `path:` package two roots
+     * depend on, or one that is also linked itself. The IDE keeps one module for both, owned by
+     * whichever root was imported last. Such modules stay, and the roots that still use them are
+     * reloaded, so they own them again.
      */
     suspend fun unlinkProject(project: Project, externalProjectPath: String) {
         SwiftPmLocalSettings.getInstance(project).forgetExternalProjects(setOf(externalProjectPath))
         ExternalProjectsManagerImpl.getInstance(project).forgetExternalProjectData(systemId, externalProjectPath)
         SwiftPmSettings.getInstance(project).unlinkExternalProject(externalProjectPath)
-        edtWriteAction { removeModules(project, externalProjectPath) }
+        val stillUsing = edtWriteAction { removeModules(project, externalProjectPath) }
+        for (root in stillUsing) ExternalSystemUtil.refreshProject(root, ImportSpecBuilder(project, systemId))
     }
 
-    private fun removeModules(project: Project, externalProjectPath: String) {
+    /** Removes the modules of [externalProjectPath] no other linked root has; returns the roots that have the others. */
+    private fun removeModules(project: Project, externalProjectPath: String): Set<String> {
         val moduleManager = ModuleManager.getInstance(project)
-        val modules = moduleManager.modules.filter {
+        val owned = moduleManager.modules.filter {
             ExternalSystemApiUtil.isExternalSystemAwareModule(systemId, it) && ExternalSystemApiUtil.getExternalRootProjectPath(it) == externalProjectPath
         }
-        if (modules.isEmpty()) return
-        moduleManager.getModifiableModel().apply {
-            modules.forEach(::disposeModule)
-            commit()
+        if (owned.isEmpty()) return emptySet()
+        // Module id -> a linked root whose imported data still has a module with that id.
+        val elsewhere = HashMap<String, String>()
+        for (root in SwiftPmProjectModel.linkedPackagePaths(project)) {
+            val node = SwiftPmProjectModel.projectNode(project, root) ?: continue
+            ExternalSystemApiUtil.findAllRecursively(node, ProjectKeys.MODULE).forEach { elsewhere.putIfAbsent(it.data.id, root) }
         }
+        val (kept, removed) = owned.partition { ExternalSystemApiUtil.getExternalProjectId(it) in elsewhere }
+        if (removed.isNotEmpty()) {
+            moduleManager.getModifiableModel().apply {
+                removed.forEach(::disposeModule)
+                commit()
+            }
+        }
+        removeOrphanLibraries(project, moduleManager)
+        return kept.mapNotNull { module -> ExternalSystemApiUtil.getExternalProjectId(module)?.let(elsewhere::get) }.toSet()
+    }
+
+    private fun removeOrphanLibraries(project: Project, moduleManager: ModuleManager) {
         val used = HashSet<Library>()
         for (module in moduleManager.modules) {
             OrderEnumerator.orderEntries(module).forEachLibrary { used += it; true }

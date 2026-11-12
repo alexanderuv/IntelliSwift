@@ -193,6 +193,41 @@ class SwiftPmProjectMapperTest {
         assertEquals(listOf("Utils", "utils.2"), names)
     }
 
+    @Test fun `module files go in the IDE project, not in the package`() {
+        val project = SwiftPmProjectMapper.map(SwiftPmFixtures.greeterGraph(), ideProjectPath = "/work/ide")
+        assertEquals("/work/ide", project.data.ideProjectFileDirectoryPath)
+        assertEquals(G, project.data.linkedExternalProjectPath)
+        assertTrue(ExternalSystemApiUtil.findAllRecursively(project, ProjectKeys.MODULE).all { it.data.moduleFileDirectoryPath == "/work/ide/.idea/modules" })
+    }
+
+    @Test fun `binary and system-library targets get no build task`() {
+        val binary = SwiftTarget("Lib", "Lib", SwiftTargetKind.BINARY, SwiftModuleType.BINARY, Path.of("/bin/Lib.xcframework"), emptyList(),
+            emptyList(), emptyList(), emptyList())
+        val pkg = SwiftPackage("bin", "Bin", Path.of("/bin"), "6.0", emptyList(), listOf(binary))
+        val graph = SwiftPackageGraph(pkg, SwiftResolvedPackage("bin", "Bin", "", "unspecified", pkg.path, emptyList()), mapOf("bin" to pkg))
+        assertTrue(tasks(module(SwiftPmProjectMapper.map(graph), "Bin.Lib")).isEmpty())
+    }
+
+    @Test fun `version-specific manifests are settings files`() {
+        assertTrue(SwiftPm.isSettingsFile("Package.swift"))
+        assertTrue(SwiftPm.isSettingsFile("Package.resolved"))
+        assertTrue(SwiftPm.isSettingsFile("Package@swift-6.0.swift"))
+        assertTrue(SwiftPm.isSettingsFile("Package@swift-5.10.1.swift"))
+        assertFalse(SwiftPm.isSettingsFile("Package@swift.swift"))
+        assertFalse(SwiftPm.isSettingsFile("Greeter.swift"))
+    }
+
+    @Test fun `paths SwiftPM resolved through a symbolic link map back to the linked ones`() {
+        val temp = java.nio.file.Files.createTempDirectory("swiftpm-paths").toRealPath()
+        val real = java.nio.file.Files.createDirectories(temp.resolve("real/App"))
+        val linked = java.nio.file.Files.createSymbolicLink(temp.resolve("link"), temp.resolve("real")).resolve("App")
+        val mapping = SwiftPmPathMapping(linked)
+        assertEquals(linked.resolve("Sources/App"), mapping.map(real.resolve("Sources/App")))
+        // A sibling `path:` dependency, through the linked parent.
+        assertEquals(temp.resolve("link/Utils"), mapping.map(temp.resolve("real/Utils")))
+        assertEquals(Path.of("/elsewhere/X"), mapping.map(Path.of("/elsewhere/X")))
+    }
+
     @Test fun `preview mode maps only the package directory`() {
         val project = SwiftPmProjectMapper.preview(Path.of(G))
         val module = packageModules(project).single()

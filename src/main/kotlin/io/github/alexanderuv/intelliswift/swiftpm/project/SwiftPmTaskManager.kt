@@ -38,7 +38,8 @@ class SwiftPmTaskManager : ExternalSystemTaskManager<SwiftPmExecutionSettings> {
         // Registered first, so that a cancel during the toolchain check is not lost.
         val cancelled = SwiftPmCancellation.register(id)
         try {
-            val commands = SwiftPackageCommands(SwiftPmToolchains.require(), SwiftPmPaths.packageDirectory(projectPath))
+            val packageDir = SwiftPmPaths.packageDirectory(projectPath)
+            val commands = SwiftPackageCommands(SwiftPmToolchains.require(packageDir), packageDir)
             for (task in tasks) {
                 val command = task.commandLine(commands, settings.arguments).withEnvironmentOf(settings)
                 // The process handler reports the command line itself, as system output.

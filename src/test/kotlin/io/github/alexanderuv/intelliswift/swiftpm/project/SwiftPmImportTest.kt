@@ -32,6 +32,10 @@ import io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmExecut
 import io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmProjectSettings
 import io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmSettings
 import io.github.alexanderuv.intelliswift.toolchain.SwiftToolchainSettings
+import com.intellij.openapi.util.SystemInfo
+import kotlin.io.path.createDirectories
+import kotlin.io.path.writeText
+import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -55,26 +59,83 @@ class SwiftPmImportTest : HeavyPlatformTestCase() {
         val greeterPath: String = SwiftPmPaths.systemIndependent(greeter)
     }
 
-    /** Links and loads `Greeter` through the External System; `null`, with a message, without Swift. */
-    private fun linkAndLoadGreeter(test: String): Fixture? {
+    /**
+     * Links and loads `Greeter` through the External System; `null`, with a message, without
+     * Swift. With [throughLink], the fixtures are reached through a symbolic link to their
+     * directory, so the paths the IDE uses differ from the physical ones SwiftPM prints.
+     */
+    private fun linkAndLoadGreeter(test: String, throughLink: Boolean = false): Fixture? {
         val toolchain = SwiftToolchainSettings.toolchain()?.takeIf { it.isValid && it.version != null }
         if (toolchain == null) {
             println("SwiftPmImportTest: no Swift toolchain detected; skipping '$test'.")
             return null
         }
-        val root = createTempDirectory().toPath().toRealPath()
+        val temp = createTempDirectory().toPath().toRealPath()
+        val root = if (throughLink) Files.createSymbolicLink(temp.resolve("link"), Files.createDirectory(temp.resolve("real"))) else temp
         val fixture = Fixture(SwiftPmFixtures.copyPackages(root), root.resolve("Utils"))
-        refresh(root)
+        refresh(temp)
         TrustedProjects.setProjectTrusted(project, true)
         TrustedProjects.setProjectTrusted(fixture.greeter, true)
+        link(fixture.greeterPath)
+        return fixture
+    }
 
-        SwiftPmSettings.getInstance(project).linkProject(SwiftPmProjectSettings(fixture.greeterPath))
+    private fun link(packagePath: String) {
+        SwiftPmSettings.getInstance(project).linkProject(SwiftPmProjectSettings(packagePath))
+        refreshAndWait(packagePath)
+    }
+
+    private fun refreshAndWait(packagePath: String) {
         val done = CompletableFuture<Void>()
-        ExternalSystemUtil.refreshProject(fixture.greeterPath, ImportSpecBuilder(project, SwiftPm.SYSTEM_ID)
+        ExternalSystemUtil.refreshProject(packagePath, ImportSpecBuilder(project, SwiftPm.SYSTEM_ID)
             .use(ProgressExecutionMode.MODAL_SYNC)
             .withCallback(done))
         done.get(5, TimeUnit.MINUTES)
-        return fixture
+    }
+
+    fun `test a package reached through a symbolic link keeps the linked paths`() {
+        if (SystemInfo.isWindows) return
+        val fixture = linkAndLoadGreeter("symbolic link", throughLink = true) ?: return
+        runReadActionBlocking {
+            assertEquals(listOf(fixture.greeter), contentRoots(module("Greeter")))
+            assertEquals(listOf(fixture.utils.resolve("Sources/Utils")), sourceRoots(module("Utils.Utils"), test = false))
+            val source = file(fixture.greeter.resolve("Sources/Greeter/Greeter.swift"))
+            assertEquals("Greeter", SwiftPmProjectModel.targetFor(project, source)?.name)
+        }
+        runBlocking { SwiftPmUnlinkedProjectAware().unlinkProject(project, fixture.greeterPath) }
+        assertEquals(emptySet<String>(), moduleNames())
+    }
+
+    fun `test unlinking a root keeps the modules another linked root uses`() {
+        val fixture = linkAndLoadGreeter("shared modules") ?: return
+        // A second root that also depends on Utils; its import takes the Utils modules over.
+        val second = fixture.utils.resolveSibling("Second")
+        second.resolve("Sources/Second").createDirectories()
+        second.resolve("Package.swift").writeText("""
+            // swift-tools-version:6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "Second",
+                dependencies: [.package(path: "../Utils")],
+                targets: [.target(name: "Second", dependencies: [.product(name: "Utils", package: "Utils")])]
+            )
+        """.trimIndent())
+        second.resolve("Sources/Second/Second.swift").writeText("import Utils\n")
+        refresh(second)
+        TrustedProjects.setProjectTrusted(second, true)
+        val secondPath = SwiftPmPaths.systemIndependent(second)
+        link(secondPath)
+
+        runBlocking { SwiftPmUnlinkedProjectAware().unlinkProject(project, secondPath) }
+        // The unlink reloads Greeter, which owns the Utils modules again; wait for a reload of it.
+        refreshAndWait(fixture.greeterPath)
+        assertFalse("Second" in moduleNames())
+        assertTrue(moduleNames().containsAll(setOf("Utils", "Utils.Utils")))
+        runReadActionBlocking {
+            assertEquals(setOf("Greeter.CHelpers", "Utils.Utils"), moduleDependencies(module("Greeter.Greeter")))
+            assertEquals("utils", SwiftPmProjectModel.packageOf(module("Utils.Utils"))?.identity)
+        }
     }
 
     fun `test links and loads the Greeter package with SwiftPM`() {

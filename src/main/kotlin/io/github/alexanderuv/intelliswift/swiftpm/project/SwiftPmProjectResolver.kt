@@ -30,18 +30,19 @@ class SwiftPmProjectResolver : ExternalSystemProjectResolver<SwiftPmExecutionSet
         listener: ExternalSystemTaskNotificationListener,
     ): DataNode<ProjectData> {
         val root = SwiftPmPaths.packageDirectory(projectPath)
-        if (isPreviewMode) return SwiftPmProjectMapper.preview(root)
+        val ideProjectPath = settings?.ideProjectPath
+        if (isPreviewMode) return SwiftPmProjectMapper.preview(root, ideProjectPath)
 
         // Registered first, so that a cancel during the toolchain check is not lost.
         val cancelled = SwiftPmCancellation.register(id)
         try {
-            val toolchain = SwiftPmToolchains.require()
-            listener.onTaskOutput(id, "Loading package at $root with ${toolchain.swift} (Swift ${toolchain.version})\n", ProcessOutputType.SYSTEM)
+            val toolchain = SwiftPmToolchains.require(root)
+            listener.onTaskOutput(id, "Loading package at $root with ${toolchain.swift} (Swift ${toolchain.versionIn(root)})\n", ProcessOutputType.SYSTEM)
             val graph = SwiftPackageGraphLoader(toolchain).load(root, cancelled::get) { text, outputType ->
                 // Standard output is the JSON being parsed; progress and diagnostics go to stderr.
                 if (!ProcessOutputType.isStdout(outputType)) listener.onTaskOutput(id, text, ProcessOutputType.fromKey(outputType))
             }
-            return SwiftPmProjectMapper.map(graph)
+            return SwiftPmProjectMapper.map(SwiftPmPathMapping(root).map(graph), ideProjectPath)
         } catch (e: SwiftCommandException) {
             throw ExternalSystemException(e.message, e)
         } catch (e: SwiftPackageJsonException) {

@@ -10,10 +10,12 @@ import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.guessProjectDir
+import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
+import io.github.alexanderuv.intelliswift.swiftpm.model.SwiftPackage
+import io.github.alexanderuv.intelliswift.swiftpm.project.settings.SwiftPmSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import java.nio.file.Path
 
 /**
  * *Link SwiftPM Project*: links a package and loads it. On a `Package.swift`, or a directory
@@ -38,11 +40,22 @@ class SwiftPmLinkProjectAction : DumbAwareAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val file = contextPackage(e)?.takeUnless { isLinked(project, it) }
+        val chosen = contextPackage(e)?.takeUnless { isLinked(project, it) }
             ?: FileChooser.chooseFile(SwiftPmManager.packageChooserDescriptor(), project, project.guessProjectDir())
             ?: return
+        // Linking first unlinks other build systems linked at the same path, so it must only
+        // start for a real package: the chooser lets any directory be picked.
+        val packageDir = SwiftPmPaths.packageDirectory(chosen)
+        if (packageDir == null) {
+            Messages.showErrorDialog(project, "${chosen.presentableUrl} contains no ${SwiftPackage.MANIFEST}.", "Link SwiftPM Project")
+            return
+        }
+        if (isLinked(project, packageDir)) {
+            Messages.showInfoMessage(project, "${packageDir.presentableUrl} is already linked, or is part of a linked package.", "Link SwiftPM Project")
+            return
+        }
         project.service<SwiftPmCoroutineScope>().scope.launch {
-            SwiftPmOpenProjectProvider().linkToExistingProjectAsync(file, project)
+            SwiftPmOpenProjectProvider().linkToExistingProjectAsync(packageDir, project)
         }
     }
 
@@ -53,10 +66,12 @@ class SwiftPmLinkProjectAction : DumbAwareAction() {
     private fun contextPackage(e: AnActionEvent): VirtualFile? =
         e.getData(CommonDataKeys.VIRTUAL_FILE)?.takeIf { it.isInLocalFileSystem }?.let(SwiftPmPaths::packageDirectory)
 
-    private fun isLinked(project: Project, directory: VirtualFile): Boolean {
-        val path = directory.toNioPath().normalize()
-        return SwiftPmProjectModel.linkedPackagePaths(project).any { Path.of(it).normalize() == path }
-    }
+    /**
+     * Whether [directory] is a linked package or one of the packages a linked package imported (a
+     * `path:` dependency): the platform refuses to link those again.
+     */
+    private fun isLinked(project: Project, directory: VirtualFile): Boolean =
+        SwiftPmSettings.getInstance(project).getLinkedProjectSettings(SwiftPmPaths.systemIndependent(directory.toNioPath())) != null
 }
 
 /** The coroutine scope SwiftPM actions launch their work in; cancelled when the project closes. */

@@ -42,18 +42,23 @@ import java.nio.file.Path
  */
 object SwiftPmProjectMapper {
 
-    fun map(graph: SwiftPackageGraph): DataNode<ProjectData> = Mapping(graph).run()
+    /**
+     * Maps [graph]. [ideProjectPath] is the IDE project's directory, which keeps the modules'
+     * `.iml` files; without one, the root package's directory does.
+     */
+    fun map(graph: SwiftPackageGraph, ideProjectPath: String? = null): DataNode<ProjectData> = Mapping(graph, ideProjectPath).run()
 
     /**
      * The model for a package that may not be evaluated: preview mode, used for projects that are
      * not trusted, since loading a package runs its manifest. Just the root module and its content.
      */
-    fun preview(root: Path): DataNode<ProjectData> {
+    fun preview(root: Path, ideProjectPath: String? = null): DataNode<ProjectData> {
         val rootPath = path(root)
+        val idePath = ideProjectPath?.let(FileUtil::toSystemIndependentName) ?: rootPath
         val name = root.fileName?.toString() ?: rootPath
-        val project = DataNode(ProjectKeys.PROJECT, ProjectData(SwiftPm.SYSTEM_ID, name, rootPath, rootPath), null)
+        val project = DataNode(ProjectKeys.PROJECT, ProjectData(SwiftPm.SYSTEM_ID, name, idePath, rootPath), null)
         // SwiftPM's identity for a root package is its lowercased directory name.
-        val module = project.createChild(ProjectKeys.MODULE, moduleData(packageModuleId(name.lowercase()), name, rootPath, rootPath))
+        val module = project.createChild(ProjectKeys.MODULE, moduleData(packageModuleId(name.lowercase()), name, rootPath, idePath))
         module.createChild(ProjectKeys.CONTENT_ROOT, contentRoot(rootPath, excludes = true))
         return project
     }
@@ -64,9 +69,10 @@ object SwiftPmProjectMapper {
 
     fun libraryName(packageIdentity: String, product: String): String = "$packageIdentity:$product"
 
-    private class Mapping(private val graph: SwiftPackageGraph) {
+    private class Mapping(private val graph: SwiftPackageGraph, ideProjectPath: String?) {
         private val rootPath = path(graph.root.path)
-        private val project = DataNode(ProjectKeys.PROJECT, ProjectData(SwiftPm.SYSTEM_ID, graph.root.name, rootPath, rootPath), null)
+        private val idePath = ideProjectPath?.let(FileUtil::toSystemIndependentName) ?: rootPath
+        private val project = DataNode(ProjectKeys.PROJECT, ProjectData(SwiftPm.SYSTEM_ID, graph.root.name, idePath, rootPath), null)
         private val editable = graph.packages.values.filter(graph::isEditable)
         private val targetModules = HashMap<Pair<String, String>, DataNode<ModuleData>>()
         private val libraries = HashMap<Pair<String, String>, LibraryData>()
@@ -102,7 +108,7 @@ object SwiftPmProjectMapper {
         private fun addPackageModule(pkg: SwiftPackage) {
             val packagePath = path(pkg.path)
             val name = uniqueModuleName(pkg.name, pkg.identity)
-            val module = project.createChild(ProjectKeys.MODULE, moduleData(packageModuleId(pkg.identity), name, packagePath, rootPath))
+            val module = project.createChild(ProjectKeys.MODULE, moduleData(packageModuleId(pkg.identity), name, packagePath, idePath))
             module.createChild(SwiftPackageData.KEY, packageData(pkg))
             for (product in pkg.products) {
                 module.createChild(SwiftProductData.KEY, SwiftProductData(pkg.identity, packagePath, product.name, product.kind, product.targets))
@@ -116,7 +122,7 @@ object SwiftPmProjectMapper {
             for (target in pkg.targets) {
                 val targetModule = module.createChild(
                     ProjectKeys.MODULE,
-                    moduleData(targetModuleId(pkg.identity, target.name), uniqueModuleName("$name.${target.name}", "${pkg.identity}.${target.name}"), packagePath, rootPath),
+                    moduleData(targetModuleId(pkg.identity, target.name), uniqueModuleName("$name.${target.name}", "${pkg.identity}.${target.name}"), packagePath, idePath),
                 )
                 targetModules[pkg.identity to target.name] = targetModule
                 targetModule.createChild(SwiftTargetData.KEY, targetData(pkg, target))
@@ -126,8 +132,11 @@ object SwiftPmProjectMapper {
                     root.storePath(if (target.kind.isTest) ExternalSystemSourceType.TEST else ExternalSystemSourceType.SOURCE, targetPath)
                     targetModule.createChild(ProjectKeys.CONTENT_ROOT, root)
                 }
-                targetModule.createChild(ProjectKeys.TASK, task(SwiftPmTask.BuildTarget(target.name), packagePath, SwiftPmTask.GROUP_BUILD,
-                    "Builds target ${target.name}"))
+                // Binary and system-library targets are not compiled, so `swift build --target` has nothing to build.
+                if (target.kind.hasSources) {
+                    targetModule.createChild(ProjectKeys.TASK, task(SwiftPmTask.BuildTarget(target.name), packagePath, SwiftPmTask.GROUP_BUILD,
+                        "Builds target ${target.name}"))
+                }
             }
         }
 
@@ -236,8 +245,9 @@ object SwiftPmProjectMapper {
         productMemberships = target.productMemberships,
     )
 
-    private fun moduleData(id: String, name: String, packagePath: String, rootPath: String): ModuleData =
-        ModuleData(id, SwiftPm.SYSTEM_ID, SwiftPackageModuleType.ID, name, "$rootPath/.idea/modules", packagePath)
+    /** A module of the package at [packagePath], whose `.iml` file goes in the IDE project at [ideProjectPath]. */
+    private fun moduleData(id: String, name: String, packagePath: String, ideProjectPath: String): ModuleData =
+        ModuleData(id, SwiftPm.SYSTEM_ID, SwiftPackageModuleType.ID, name, "$ideProjectPath/.idea/modules", packagePath)
 
     private fun contentRoot(path: String, excludes: Boolean): ContentRootData = ContentRootData(SwiftPm.SYSTEM_ID, path).apply {
         if (excludes) SwiftPm.EXCLUDED_DIRECTORY_NAMES.forEach { storePath(ExternalSystemSourceType.EXCLUDED, "$path/$it") }
