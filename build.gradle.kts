@@ -27,7 +27,8 @@ repositories {
 dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.opentest4j:opentest4j:1.3.0")
-    testImplementation("com.google.code.gson:gson:2.11.0")
+    // Parses SwiftPM's JSON output; the platform does not expose a JSON library to plugins.
+    implementation("com.google.code.gson:gson:2.13.2")
 
     intellijPlatform {
         intellijIdea(providers.gradleProperty("platformVersion"))

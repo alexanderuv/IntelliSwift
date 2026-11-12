@@ -1,0 +1,26 @@
+{
+  "identity": "greeter",
+  "name": "Greeter",
+  "url": "/FIXTURE/Greeter",
+  "version": "unspecified",
+  "path": "/FIXTURE/Greeter",
+  "traits": [
+    "default"
+  ],
+  "dependencies": [
+    {
+      "identity": "utils",
+      "name": "Utils",
+      "url": "/FIXTURE/Utils",
+      "version": "unspecified",
+      "path": "/FIXTURE/Utils",
+      "traits": [
+        "default"
+      ],
+      "dependencies": [
+
+      ]
+    }
+  ]
+}
+

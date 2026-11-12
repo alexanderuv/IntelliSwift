@@ -1,0 +1,140 @@
+{
+  "dependencies" : [
+    {
+      "identity" : "utils",
+      "path" : "/FIXTURE/Utils",
+      "type" : "fileSystem"
+    }
+  ],
+  "manifest_display_name" : "Greeter",
+  "name" : "Greeter",
+  "path" : "/FIXTURE/Greeter",
+  "platforms" : [
+    {
+      "name" : "macos",
+      "version" : "13.0"
+    }
+  ],
+  "products" : [
+    {
+      "name" : "Greeter",
+      "targets" : [
+        "Greeter"
+      ],
+      "type" : {
+        "library" : [
+          "automatic"
+        ]
+      }
+    },
+    {
+      "name" : "greet",
+      "targets" : [
+        "greet"
+      ],
+      "type" : {
+        "executable" : null
+      }
+    },
+    {
+      "name" : "Lint",
+      "targets" : [
+        "Lint"
+      ],
+      "type" : {
+        "plugin" : null
+      }
+    }
+  ],
+  "targets" : [
+    {
+      "c99name" : "greet",
+      "module_type" : "SwiftTarget",
+      "name" : "greet",
+      "path" : "Sources/greet",
+      "product_memberships" : [
+        "greet"
+      ],
+      "sources" : [
+        "main.swift"
+      ],
+      "target_dependencies" : [
+        "Greeter"
+      ],
+      "type" : "executable"
+    },
+    {
+      "c99name" : "Lint",
+      "module_type" : "PluginTarget",
+      "name" : "Lint",
+      "path" : "Plugins/Lint",
+      "plugin_capability" : {
+        "intent" : {
+          "description" : "Lint the package",
+          "type" : "custom",
+          "verb" : "lint"
+        },
+        "permissions" : [
+
+        ],
+        "type" : "command"
+      },
+      "product_memberships" : [
+        "Lint"
+      ],
+      "sources" : [
+        "Lint.swift"
+      ],
+      "type" : "plugin"
+    },
+    {
+      "c99name" : "GreeterTests",
+      "module_type" : "SwiftTarget",
+      "name" : "GreeterTests",
+      "path" : "Tests/GreeterTests",
+      "sources" : [
+        "GreeterTests.swift",
+        "GreeterXCTests.swift"
+      ],
+      "target_dependencies" : [
+        "Greeter"
+      ],
+      "type" : "test"
+    },
+    {
+      "c99name" : "Greeter",
+      "module_type" : "SwiftTarget",
+      "name" : "Greeter",
+      "path" : "Sources/Greeter",
+      "product_dependencies" : [
+        "Utils"
+      ],
+      "product_memberships" : [
+        "Greeter",
+        "greet"
+      ],
+      "sources" : [
+        "Greeter.swift"
+      ],
+      "target_dependencies" : [
+        "CHelpers"
+      ],
+      "type" : "library"
+    },
+    {
+      "c99name" : "CHelpers",
+      "module_type" : "ClangTarget",
+      "name" : "CHelpers",
+      "path" : "Sources/CHelpers",
+      "product_memberships" : [
+        "Greeter",
+        "greet"
+      ],
+      "sources" : [
+        "helpers.c"
+      ],
+      "type" : "library"
+    }
+  ],
+  "tools_version" : "6.0"
+}

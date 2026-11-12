@@ -7,6 +7,6 @@ out/
 .intellijPlatform/
 .DS_Store
 
-# SwiftPM
-tools/*/.build/
-tools/*/.swiftpm/
+# SwiftPM (the oracle tool and the test fixture packages)
+.build/
+.swiftpm/
